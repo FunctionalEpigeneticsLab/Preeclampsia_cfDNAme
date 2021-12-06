@@ -100,13 +100,27 @@ def index_frag_mc(inbam):
                         lreadend = read1end
                         mateend = read2end
 
+                    (mC, umC, totalC) = (0, 0, 0)
+
                     #evaluate overlap
                     if (read1end < read2start):
                         ##use N to fill gap between R1 and R2
                         ##to do check softclip
                         fillgapN = "N"*(read2start - read1end - 1)
                         fxmstring = f'{fragstartXM}{fillgapN}{fragmergeXM}'
-                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{fxmstring}'
+                        for fragpos, xm_base in enumerate(fxmstring):
+                            if xm_base in 'Z':
+                                mC += 1
+                            elif xm_base in 'z':
+                                umC += 1
+                            else:
+                                pass
+                        totalC = mC + umC
+                        if (totalC == 0):
+                            fracC = 0
+                        else:
+                            fracC = '{0:.4}'.format(mC/totalC)
+                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{fxmstring}'
                         print(pfline)
                     elif (read1start <= read2start and read1end >= read2end) or (read2start <= read1start and read2end >= read1end):
                         #full overlap; one read covers the mate entirely
@@ -122,7 +136,21 @@ def index_frag_mc(inbam):
                             else:
                                 overlapxm += 'D'
                         fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
-                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{fxmstring}'
+
+                        for fragpos, xm_base in	enumerate(fxmstring):
+                            if xm_base in 'Z':
+                                mC += 1
+                            elif xm_base in 'z':
+                                umC += 1
+                            else:
+                                pass
+                        totalC = mC + umC
+                        if (totalC == 0):
+                            fracC = 0
+                        else:
+                            fracC = '{0:.4}'.format(mC/totalC)
+
+                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{fxmstring}'
                         print(pfline)
 
                     else:
@@ -138,7 +166,19 @@ def index_frag_mc(inbam):
                             else:
                                 overlapxm += 'D'
                         fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
-                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{fxmstring}'
+                        for fragpos, xm_base in	enumerate(fxmstring):
+                            if xm_base in 'Z':
+                                mC += 1
+                            elif xm_base in 'z':
+                                umC += 1
+                            else:
+                                pass
+                        totalC = mC + umC
+                        if (totalC == 0):
+                            fracC = 0
+                        else:
+                            fracC = '{0:.4}'.format(mC/totalC)
+                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{fxmstring}'
                         print(pfline)
 
 
