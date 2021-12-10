@@ -4,6 +4,7 @@ import sys
 import os
 import re
 import pysam
+import gzip
 from collections import defaultdict
 
 '''
@@ -53,143 +54,161 @@ def resolveinsertion(read1, read2):
     read1cigar = read1.cigarstring
     read2cigar = read2.cigarstring
 
-def index_frag_mc(inbam):
-    with pysam.AlignmentFile(inbam, mode='rb') as fh:
-        for read1, read2 in find_read_pair(fh):
-            #initialize
-            (readname, read1ref, fxmstring) = (None, None, None)
-            (fleftmost, frightmost, fracC) = (-1, -1, -1)
-            read1ref = read1.reference_name
-            read2ref = read2.reference_name
-            #skip reads with deletion temporarily
-            read1cigar = read1.cigarstring
-            read2cigar = read2.cigarstring
-            if ('D' in read1cigar) or ('D' in read2cigar) or ('I' in read1cigar) or ('I' in read2cigar):
-                continue
-            else:
-                if (read1ref == read2ref):
-                    read1start = read1.reference_start + 1
-                    read2start = read2.reference_start + 1
-                    read1end = read1.reference_end
-                    read2end = read2.reference_end
-                    ftlen = abs(read1.template_length)
-                    #pysam reference_start: 0-based; match bam file to 1-based
-                    fleftmost = min(read1start, read2start)
-                    frightmost = fleftmost + ftlen - 1
+def index_frag_mc(inbam, outfh):
+    buffer_lines = 100000
+    with gzip.open(outfh, 'wt') as fo:
+        with pysam.AlignmentFile(inbam, mode='rb') as fh:
+            buffchunk = ""
+            buffl = 0
 
-                    readname = read1.query_name
-                    read1xm = read1.get_tag('XM')
-                    read2xm = read2.get_tag('XM')
-                    frag_dict = defaultdict(int)
+            for read1, read2 in find_read_pair(fh):
+                #initialize
+                (readname, read1ref, fxmstring) = (None, None, None)
+                (fleftmost, frightmost, fracC) = (-1, -1, -1)
+                read1ref = read1.reference_name
+                read2ref = read2.reference_name
+                #skip reads with deletion temporarily
+                read1cigar = read1.cigarstring
+                read2cigar = read2.cigarstring
+                if ('D' in read1cigar) or ('D' in read2cigar) or ('I' in read1cigar) or ('I' in read2cigar):
+                    continue
+                else:
+                    if (read1ref == read2ref):
+                        read1start = read1.reference_start + 1
+                        read2start = read2.reference_start + 1
+                        read1end = read1.reference_end
+                        read2end = read2.reference_end
+                        ftlen = abs(read1.template_length)
+                        #pysam reference_start: 0-based; match bam file to 1-based
+                        fleftmost = min(read1start, read2start)
+                        frightmost = fleftmost + ftlen - 1
 
-                    #evalute letfmost read
-                    if fleftmost == read1start:
-                        lreadstart = read1start
-                        matestart = read2start
-                        fragstartXM = read1xm
-                        fragmergeXM = read2xm
+                        readname = read1.query_name
+                        read1xm = read1.get_tag('XM')
+                        read2xm = read2.get_tag('XM')
+                        frag_dict = defaultdict(int)
 
-                    else:
-                        lreadstart = read2start
-                        matestart = read1start
-                        fragstartXM = read2xm
-                        fragmergeXM = read1xm
+                        #evalute letfmost read
+                        if fleftmost == read1start:
+                            lreadstart = read1start
+                            matestart = read2start
+                            fragstartXM = read1xm
+                            fragmergeXM = read2xm
 
-                    #evalute righmost read
-                    if frightmost == read1end:
-                        lreadend = read2end
-                        mateend = read1end
-                    else:
-                        lreadend = read1end
-                        mateend = read2end
+                        else:
+                            lreadstart = read2start
+                            matestart = read1start
+                            fragstartXM = read2xm
+                            fragmergeXM = read1xm
 
-                    (mC, umC, totalC) = (0, 0, 0)
-                    Zmarkpos = []
-                    zmarkpos = []
+                        #evalute righmost read
+                        if frightmost == read1end:
+                            lreadend = read2end
+                            mateend = read1end
+                        else:
+                            lreadend = read1end
+                            mateend = read2end
 
-                    #evaluate overlap
-                    if (read1end < read2start):
-                        ##use N to fill gap between R1 and R2
-                        ##to do check softclip
-                        fillgapN = "N"*(read2start - read1end - 1)
-                        fxmstring = f'{fragstartXM}{fillgapN}{fragmergeXM}'
-                        for fragpos, xm_base in enumerate(fxmstring):
-                            if xm_base in 'Z':
-                                mC += 1
-                                Zmarkpos.append(str(lreadstart + fragpos))
-                            elif xm_base in 'z':
-                                umC += 1
-                                zmarkpos.append(str(lreadstart + fragpos))
-                            else:
-                                pass
+                        (mC, umC, totalC) = (0, 0, 0)
+                        Zmarkpos = []
+                        zmarkpos = []
 
-                    elif (read1start <= read2start and read1end >= read2end) or (read2start <= read1start and read2end >= read1end):
-                        #full overlap; one read covers the mate entirely
-                        #code unmatched mC call from R1 and R2 as 'D'
-                        overlapxm = ""
-                        overlapSpos = matestart - lreadstart
-                        overlapEpos = lreadend - matestart + overlapSpos + 1
-                        leftxmstring = f'{fragstartXM[0:(overlapSpos)]}'
-                        rightxmstring = f'{fragstartXM[overlapEpos:]}'
-                        for i in range(overlapSpos,overlapEpos):
-                            if (fragstartXM[i] == fragmergeXM[i-overlapSpos]):
-                                overlapxm += fragstartXM[i]
-                            else:
-                                overlapxm += 'D'
-                        fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
+                        ################################to do convert strand########################################
+                        read1xr = read1.get_tag('XR')
+                        read2xr = read2.get_tag('XR')
+                        read1xg = read1.get_tag('XG')
+                        read2xg = read2.get_tag('XG')
+                        #if ()
 
-                        for fragpos, xm_base in	enumerate(fxmstring):
-                            if xm_base in 'Z':
-                                mC += 1
-                                Zmarkpos.append(str(lreadstart + fragpos))
-                            elif xm_base in 'z':
-                                umC += 1
-                                zmarkpos.append(str(lreadstart + fragpos))
-                            else:
-                                pass
+                        #evaluate overlap
+                        if (read1end < read2start):
+                            ##use N to fill gap between R1 and R2
+                            ##to do check softclip
+                            fillgapN = "N"*(read2start - read1end - 1)
+                            fxmstring = f'{fragstartXM}{fillgapN}{fragmergeXM}'
+                            for fragpos, xm_base in enumerate(fxmstring):
+                                if xm_base in 'Z':
+                                    mC += 1
+                                    Zmarkpos.append(str(lreadstart + fragpos))
+                                elif xm_base in 'z':
+                                    umC += 1
+                                    zmarkpos.append(str(lreadstart + fragpos))
+                                else:
+                                    pass
 
-                    else:
-                        #partial overlap; merge overlap here
-                        overlapxm = ""
-                        overlapSpos = matestart - lreadstart
-                        overlapEpos = lreadend - matestart + overlapSpos + 1
-                        leftxmstring = f'{fragstartXM[0:(overlapSpos)]}'
-                        rightxmstring = f'{fragmergeXM[(overlapEpos-overlapSpos):]}'
-                        for i in range(overlapSpos, overlapEpos):
-                            if (fragstartXM[i] == fragmergeXM[i-overlapSpos]):
-                                overlapxm += fragstartXM[i]
-                            else:
-                                overlapxm += 'D'
-                        fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
-                        for fragpos, xm_base in	enumerate(fxmstring):
-                            if xm_base in 'Z':
-                                mC += 1
-                                Zmarkpos.append(str(lreadstart + fragpos))
-                            elif xm_base in 'z':
-                                umC += 1
-                                zmarkpos.append(str(lreadstart + fragpos))
-                            else:
-                                pass
+                        elif (read1start <= read2start and read1end >= read2end) or (read2start <= read1start and read2end >= read1end):
+                            #full overlap; one read covers the mate entirely
+                            #code unmatched mC call from R1 and R2 as 'D'
+                            overlapxm = ""
+                            overlapSpos = matestart - lreadstart
+                            overlapEpos = lreadend - matestart + overlapSpos + 1
+                            leftxmstring = f'{fragstartXM[0:(overlapSpos)]}'
+                            rightxmstring = f'{fragstartXM[overlapEpos:]}'
+                            for i in range(overlapSpos,overlapEpos):
+                                if (fragstartXM[i] == fragmergeXM[i-overlapSpos]):
+                                    overlapxm += fragstartXM[i]
+                                else:
+                                    overlapxm += 'D'
+                            fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
 
-                    totalC = mC + umC
-                    if (totalC == 0):
-                        fracC = 0
-                    else:
-                        fracC = '{0:.4}'.format(mC/totalC)
+                            for fragpos, xm_base in	enumerate(fxmstring):
+                                if xm_base in 'Z':
+                                    mC += 1
+                                    Zmarkpos.append(str(lreadstart + fragpos))
+                                elif xm_base in 'z':
+                                    umC += 1
+                                    zmarkpos.append(str(lreadstart + fragpos))
+                                else:
+                                    pass
 
-                    if not Zmarkpos:
-                        Zmarkposl = 'NULL'
-                    else:
-                        Zmarkposl = ','.join(Zmarkpos)
+                        else:
+                            #partial overlap; merge overlap here
+                            overlapxm = ""
+                            overlapSpos = matestart - lreadstart
+                            overlapEpos = lreadend - matestart + overlapSpos + 1
+                            leftxmstring = f'{fragstartXM[0:(overlapSpos)]}'
+                            rightxmstring = f'{fragmergeXM[(overlapEpos-overlapSpos):]}'
+                            for i in range(overlapSpos, overlapEpos):
+                                if (fragstartXM[i] == fragmergeXM[i-overlapSpos]):
+                                    overlapxm += fragstartXM[i]
+                                else:
+                                    overlapxm += 'D'
+                            fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
+                            for fragpos, xm_base in	enumerate(fxmstring):
+                                if xm_base in 'Z':
+                                    mC += 1
+                                    Zmarkpos.append(str(lreadstart + fragpos))
+                                elif xm_base in 'z':
+                                    umC += 1
+                                    zmarkpos.append(str(lreadstart + fragpos))
+                                else:
+                                    pass
 
-                    if not zmarkpos:
-                        zmarkposl = 'NULL'
-                    else:
-                        zmarkposl = ','.join(zmarkpos)
+                        totalC = mC + umC
+                        if (totalC == 0):
+                            fracC = 0
+                        else:
+                            fracC = '{0:.4}'.format(mC/totalC)
 
-                    pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{fxmstring}'
-                    print(pfline)
+                        if not Zmarkpos:
+                            Zmarkposl = 'NULL'
+                        else:
+                            Zmarkposl = ','.join(Zmarkpos)
+
+                        if not zmarkpos:
+                            zmarkposl = 'NULL'
+                        else:
+                            zmarkposl = ','.join(zmarkpos)
+
+                        pfline = f'{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{readname}\t{fxmstring}\n'
+                        buffl += 1
+                        if buffl >= buffer_lines:
+                            fo.write(buffchunk)
+                            buffchunk = ""
+                            buffl = 1
+
+                        buffchunk += pfline
 
 
 if __name__ == '__main__':
-    index_frag_mc(sys.argv[1])
+    index_frag_mc(sys.argv[1], sys.argv[2])
