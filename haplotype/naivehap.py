@@ -56,6 +56,9 @@ def resolveinsertion(read1, read2):
 def index_frag_mc(inbam):
     with pysam.AlignmentFile(inbam, mode='rb') as fh:
         for read1, read2 in find_read_pair(fh):
+            #initialize
+            (readname, read1ref, fxmstring) = (None, None, None)
+            (fleftmost, frightmost, fracC) = (-1, -1, -1)
             read1ref = read1.reference_name
             read2ref = read2.reference_name
             #skip reads with deletion temporarily
@@ -101,6 +104,8 @@ def index_frag_mc(inbam):
                         mateend = read2end
 
                     (mC, umC, totalC) = (0, 0, 0)
+                    Zmarkpos = []
+                    zmarkpos = []
 
                     #evaluate overlap
                     if (read1end < read2start):
@@ -111,17 +116,13 @@ def index_frag_mc(inbam):
                         for fragpos, xm_base in enumerate(fxmstring):
                             if xm_base in 'Z':
                                 mC += 1
+                                Zmarkpos.append(str(lreadstart + fragpos))
                             elif xm_base in 'z':
                                 umC += 1
+                                zmarkpos.append(str(lreadstart + fragpos))
                             else:
                                 pass
-                        totalC = mC + umC
-                        if (totalC == 0):
-                            fracC = 0
-                        else:
-                            fracC = '{0:.4}'.format(mC/totalC)
-                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{fxmstring}'
-                        print(pfline)
+
                     elif (read1start <= read2start and read1end >= read2end) or (read2start <= read1start and read2end >= read1end):
                         #full overlap; one read covers the mate entirely
                         #code unmatched mC call from R1 and R2 as 'D'
@@ -140,18 +141,12 @@ def index_frag_mc(inbam):
                         for fragpos, xm_base in	enumerate(fxmstring):
                             if xm_base in 'Z':
                                 mC += 1
+                                Zmarkpos.append(str(lreadstart + fragpos))
                             elif xm_base in 'z':
                                 umC += 1
+                                zmarkpos.append(str(lreadstart + fragpos))
                             else:
                                 pass
-                        totalC = mC + umC
-                        if (totalC == 0):
-                            fracC = 0
-                        else:
-                            fracC = '{0:.4}'.format(mC/totalC)
-
-                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{fxmstring}'
-                        print(pfline)
 
                     else:
                         #partial overlap; merge overlap here
@@ -169,17 +164,31 @@ def index_frag_mc(inbam):
                         for fragpos, xm_base in	enumerate(fxmstring):
                             if xm_base in 'Z':
                                 mC += 1
+                                Zmarkpos.append(str(lreadstart + fragpos))
                             elif xm_base in 'z':
                                 umC += 1
+                                zmarkpos.append(str(lreadstart + fragpos))
                             else:
                                 pass
-                        totalC = mC + umC
-                        if (totalC == 0):
-                            fracC = 0
-                        else:
-                            fracC = '{0:.4}'.format(mC/totalC)
-                        pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{fxmstring}'
-                        print(pfline)
+
+                    totalC = mC + umC
+                    if (totalC == 0):
+                        fracC = 0
+                    else:
+                        fracC = '{0:.4}'.format(mC/totalC)
+
+                    if not Zmarkpos:
+                        Zmarkposl = 'NULL'
+                    else:
+                        Zmarkposl = ','.join(Zmarkpos)
+
+                    if not zmarkpos:
+                        zmarkposl = 'NULL'
+                    else:
+                        zmarkposl = ','.join(zmarkpos)
+
+                    pfline = f'{readname}\t{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{fxmstring}'
+                    print(pfline)
 
 
 if __name__ == '__main__':
