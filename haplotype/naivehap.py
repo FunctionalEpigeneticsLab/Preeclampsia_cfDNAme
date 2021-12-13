@@ -88,6 +88,17 @@ def index_frag_mc(inbam, outfh):
                         read2xm = read2.get_tag('XM')
                         frag_dict = defaultdict(int)
 
+                        #evalute top/bottom strand
+                        fstrand = None
+                        read1xg = read1.get_tag('XG')
+                        read2xg = read2.get_tag('XG')
+                        if (read1xg == read2xg == "GA"):
+                            fstrand = "BOT"
+                        elif (read1xg == read2xg == "CT"):
+                            fstrand = "TOP"
+                        else:
+                            print(f'error in strand {readname}')
+
                         #evalute letfmost read
                         if fleftmost == read1start:
                             lreadstart = read1start
@@ -113,13 +124,6 @@ def index_frag_mc(inbam, outfh):
                         Zmarkpos = []
                         zmarkpos = []
 
-                        ################################to do convert strand########################################
-                        read1xr = read1.get_tag('XR')
-                        read2xr = read2.get_tag('XR')
-                        read1xg = read1.get_tag('XG')
-                        read2xg = read2.get_tag('XG')
-                        #if ()
-
                         #evaluate overlap
                         if (read1end < read2start):
                             ##use N to fill gap between R1 and R2
@@ -127,6 +131,9 @@ def index_frag_mc(inbam, outfh):
                             fillgapN = "N"*(read2start - read1end - 1)
                             fxmstring = f'{fragstartXM}{fillgapN}{fragmergeXM}'
                             for fragpos, xm_base in enumerate(fxmstring):
+                                if fstrand == "BOT":
+                                    fragpos = fragpos - 1
+
                                 if xm_base in 'Z':
                                     mC += 1
                                     Zmarkpos.append(str(lreadstart + fragpos))
@@ -151,7 +158,10 @@ def index_frag_mc(inbam, outfh):
                                     overlapxm += 'D'
                             fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
 
-                            for fragpos, xm_base in	enumerate(fxmstring):
+                            for fragpos, xm_base in enumerate(fxmstring):
+                                if fstrand == "BOT":
+                                    fragpos = fragpos -	1
+
                                 if xm_base in 'Z':
                                     mC += 1
                                     Zmarkpos.append(str(lreadstart + fragpos))
@@ -174,7 +184,10 @@ def index_frag_mc(inbam, outfh):
                                 else:
                                     overlapxm += 'D'
                             fxmstring = f'{leftxmstring}{overlapxm}{rightxmstring}'
-                            for fragpos, xm_base in	enumerate(fxmstring):
+                            for fragpos, xm_base in enumerate(fxmstring):
+                                if fstrand == "BOT":
+                                    fragpos = fragpos -	1
+
                                 if xm_base in 'Z':
                                     mC += 1
                                     Zmarkpos.append(str(lreadstart + fragpos))
@@ -201,13 +214,17 @@ def index_frag_mc(inbam, outfh):
                             zmarkposl = ','.join(zmarkpos)
 
                         pfline = f'{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{readname}\t{fxmstring}\n'
+                        print(pfline)
                         buffl += 1
                         if buffl >= buffer_lines:
                             fo.write(buffchunk)
                             buffchunk = ""
-                            buffl = 1
+                            buffl = 0
 
                         buffchunk += pfline
+            if (buffl > 0):
+                fo.write(buffchunk)
+                buffchunk = ""
 
 
 if __name__ == '__main__':
