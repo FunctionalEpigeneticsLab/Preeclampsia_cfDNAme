@@ -22,6 +22,21 @@ level3 iterator
 all target
 '''
 
+def get_target(targetfh):
+    tardict = dict()
+    tartype = None
+    with open(targetfh, 'r') as fh:
+        for line in fh:
+            (chrom, start, end, tarname) = line.strip().split('\t')
+            tarkey = f'{chrom}:{start}:{end}'
+            if ('cg' in tarname):
+                tartype = "Blood"
+            elif ('PET'):
+                tartype = "Placenta"
+            tardict[tarkey] = tartype
+
+    return(tardict)
+
 def find_read_pair(inbam, mapregion=None):
     #initialize two-level dict
     matedict = defaultdict(lambda: defaultdict(None))
@@ -54,8 +69,10 @@ def resolveinsertion(read1, read2):
     read1cigar = read1.cigarstring
     read2cigar = read2.cigarstring
 
-def index_frag_mc(inbam, outfh):
+def index_frag_mc(inbam, targetfh, outfh):
     buffer_lines = 100000
+    regions = get_target(targetfh)
+
     with gzip.open(outfh, 'wt') as fo:
         with pysam.AlignmentFile(inbam, mode='rb') as fh:
             buffchunk = ""
@@ -213,8 +230,21 @@ def index_frag_mc(inbam, outfh):
                         else:
                             zmarkposl = ','.join(zmarkpos)
 
-                        pfline = f'{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{readname}\t{fxmstring}\n'
-                        print(pfline)
+                        ##fetch target information
+                        (ftarstart, ftarend) = (0, 0)
+                        ftartype = '-'
+                        for ita in regions:
+                            (chrom, tarstart, tarend) = ita.split(":")
+
+                            if read1ref == chrom:
+                                if (frightmost > int(tarstart) and frightmost < int(tarend)) or (fleftmost > int(tarstart) and frightmost < int(tarend)) or (fleftmost > int(tarstart) and fleftmost < int(tarend)):
+                                    ftarstart = tarstart
+                                    ftarend = tarend
+                                    ftartype = regions[ita]
+                                    break
+
+                        pfline = f'{read1ref}\t{ftarstart}\t{ftarend}\t{ftartype}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{readname}\t{fxmstring}\n'
+
                         buffl += 1
                         if buffl >= buffer_lines:
                             fo.write(buffchunk)
@@ -228,4 +258,4 @@ def index_frag_mc(inbam, outfh):
 
 
 if __name__ == '__main__':
-    index_frag_mc(sys.argv[1], sys.argv[2])
+    index_frag_mc(sys.argv[1], sys.argv[2], sys.argv[3])
