@@ -18,7 +18,11 @@ GetPileFrag <- function(infh) {
     fh <- fh[,c(1:7,13)]
     colnames(fh) <- c("chr", "start", "end", "size", "mcrate", "mcpos", "umcpos","type")
     #remove fragments with no CG site
-    subfh <- fh[!(is.na(fh$mcpos) & is.na(fh$umcpos)),]
+    #subfh <- fh[!(is.na(fh$mcpos) & is.na(fh$umcpos)),]
+    subfh <- fh[!(fh$mcpos=="NULL" & fh$umcpos=="NULL"),]
+    dt <- subfh %>% filter(!(type==".")) %>% rowwise() %>% mutate(mcnum=ifelse(mcpos=="NULL", 0, length(unlist(strsplit(mcpos,split=","))))) %>% mutate(umcnum=ifelse(umcpos=="NULL", 0, length(unlist(strsplit(umcpos,split=","))))) %>% mutate(totalmc = mcnum+umcnum)
+    outfh <- paste0(outprefix, ".filtered.tsv")
+    write.table(dt, outfh, quote=FALSE, row.names=FALSE, sep="\t")
     return(subfh)
 }
 
