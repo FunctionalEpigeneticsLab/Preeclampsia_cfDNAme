@@ -5,6 +5,7 @@ import os
 import re
 import pysam
 import gzip
+import subprocess
 from collections import defaultdict
 
 '''
@@ -22,20 +23,27 @@ level3 iterator
 all target
 '''
 
-def get_target(targetfh):
-    tardict = dict()
-    tartype = None
-    with open(targetfh, 'r') as fh:
-        for line in fh:
-            (chrom, start, end, tarname) = line.strip().split('\t')
-            tarkey = f'{chrom}:{start}:{end}'
-            if ('cg' in tarname):
-                tartype = "Blood"
-            elif ('PET'):
-                tartype = "Placenta"
-            tardict[tarkey] = tartype
+#def get_target(targetfh):
+#    tardict = dict()
+#    tartype = None
+#    with open(targetfh, 'r') as fh:
+#        for line in fh:
+#            (chrom, start, end, tarname) = line.strip().split('\t')
+#            tarkey = f'{chrom}:{start}:{end}'
+#            if ('cg' in tarname):
+#                tartype = "Blood"
+#            elif ('PET' in tarname):
+#                tartype = "Placenta"
+#            tardict[tarkey] = tartype
 
-    return(tardict)
+#    return(tardict)
+
+#def target_generator(targetfh,infragchr):
+#    with open(targetfh, 'r') as fh:
+#        for ita in fh:
+#            chrom = ita.strip().split('\t')[0]
+#            if infragchr == chrom:
+#                yield ita
 
 def find_read_pair(inbam, mapregion=None):
     #initialize two-level dict
@@ -69,9 +77,9 @@ def resolveinsertion(read1, read2):
     read1cigar = read1.cigarstring
     read2cigar = read2.cigarstring
 
-def index_frag_mc(inbam, targetfh, outfh):
+def index_frag_mc(inbam, outfh):
     buffer_lines = 100000
-    regions = get_target(targetfh)
+    #regions = get_target(targetfh)
 
     with gzip.open(outfh, 'wt') as fo:
         with pysam.AlignmentFile(inbam, mode='rb') as fh:
@@ -231,19 +239,20 @@ def index_frag_mc(inbam, targetfh, outfh):
                             zmarkposl = ','.join(zmarkpos)
 
                         ##fetch target information
-                        (ftarstart, ftarend) = (0, 0)
-                        ftartype = '-'
-                        for ita in regions:
-                            (chrom, tarstart, tarend) = ita.split(":")
+                        #(ftarstart, ftarend) = (0, 0)
+                        #ftartype = '-'
+                        #for ita in regions:
+                        #    (chrom, tarstart, tarend) = ita.split(":")
 
-                            if read1ref == chrom:
-                                if (frightmost > int(tarstart) and frightmost < int(tarend)) or (fleftmost > int(tarstart) and frightmost < int(tarend)) or (fleftmost > int(tarstart) and fleftmost < int(tarend)):
-                                    ftarstart = tarstart
-                                    ftarend = tarend
-                                    ftartype = regions[ita]
-                                    break
+                        #    if read1ref == chrom:
+                        #        if (frightmost > int(tarstart) and frightmost < int(tarend)) or (fleftmost > int(tarstart) and frightmost < int(tarend)) or (fleftmost > int(tarstart) and fleftmost < int(tarend)):
+                        #            ftarstart = tarstart
+                        #            ftarend = tarend
+                        #            ftartype = regions[ita]
+                        #            break
 
-                        pfline = f'{read1ref}\t{ftarstart}\t{ftarend}\t{ftartype}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{readname}\t{fxmstring}\n'
+                        #pfline = f'{read1ref}\t{ftarstart}\t{ftarend}\t{ftartype}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{readname}\t{fxmstring}\n'
+                        pfline = f'{read1ref}\t{fleftmost}\t{frightmost}\t{len(fxmstring)}\t{fracC}\t{Zmarkposl}\t{zmarkposl}\t{readname}\t{fxmstring}\n'
 
                         buffl += 1
                         if buffl >= buffer_lines:
@@ -256,6 +265,18 @@ def index_frag_mc(inbam, targetfh, outfh):
                 fo.write(buffchunk)
                 buffchunk = ""
 
+def fetch_target(inbam, indexfragfh, targetfh):
+    index_frag_mc(inbam, indexfragfh)
+    fhprefix = indexfragfh.rsplit('.',2)[0]
+    tmpfh0 = f'{fhprefix}.tmp'
+    shcmd0 = f'gunzip -c {indexfragfh} > {tmpfh0}'
+    subprocess.call(shcmd0, shell=True)
+    outfh = f'{fhprefix}.target.bed'
+    shcmd1 = f'bedtools intersect -a {tmpfh0} -b {targetfh} -loj > {outfh}'
+    subprocess.call(shcmd1, shell=True)
+    shcmd2 = f'rm {tmpfh0}'
+    subprocess.call(shcmd2, shell=True)
+
 
 if __name__ == '__main__':
-    index_frag_mc(sys.argv[1], sys.argv[2], sys.argv[3])
+    fetch_target(sys.argv[1], sys.argv[2], sys.argv[3])
