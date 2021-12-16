@@ -272,16 +272,14 @@ def index_frag_mc(inbam, outfh):
                 buffchunk = ""
 
 def fetch_target(inbam, indexfragfh, targetfh):
-    #index_frag_mc(inbam, indexfragfh)
+    index_frag_mc(inbam, indexfragfh)
     fhprefix = indexfragfh.rsplit('.',2)[0]
     tmpfh0 = f'{fhprefix}.tmp'
-    #shcmd0 = f'gunzip -c {indexfragfh} > {tmpfh0}'
-    #subprocess.call(shcmd0, shell=True)
+    shcmd0 = f'gunzip -c {indexfragfh} > {tmpfh0}'
+    subprocess.call(shcmd0, shell=True)
     tmpfh1 = f'{fhprefix}.target.tmp'
-    #shcmd1 = f'bedtools intersect -a {tmpfh0} -b {targetfh} -wao > {tmpfh1}'
-    #subprocess.call(shcmd1, shell=True)
-    ##shcmd2 = f'rm {tmpfh0}'
-    ##subprocess.call(shcmd2, shell=True)
+    shcmd1 = f'bedtools intersect -a {tmpfh0} -b {targetfh} -wao > {tmpfh1}'
+    subprocess.call(shcmd1, shell=True)
 
     ###A fragment may overlap adjacent targets, assign the fragment to the target with greater overlap
     ###prerequsite: duplicated entries are in order
@@ -289,39 +287,47 @@ def fetch_target(inbam, indexfragfh, targetfh):
     lcounter = 0
     pdist = 0
     flushline = ""
+    lastline = ""
+    chroms = list(map(str,range(1,23)))+['X', 'Y', 'M']
 
     outfh = f'{fhprefix}.target.bed'
     try:
         with open(tmpfh1, 'r') as fh, open(outfh, 'w') as fo:
             for line in fh:
                 curline = line.strip()
-                (readname, interdist) = (line.strip().split("\t")[7], line.strip().split("\t")[13])
+                (chrom, readname, interdist) = (curline.split("\t")[0], curline.split("\t")[7], curline.split("\t")[13])
                 interdist = int(interdist)
-                if lcounter == 0:
-                    flushline = curline
-                    pname = readname
-                    pdist = interdist
-                else:
-                    if readname == pname:
-                        if (interdist > pdist):
-                            flushline = curline
-                            pname = readname
-                            pdist = interdist
-                        else:
-                            pass
-
-                    else:
-                        pfline = flushline
-                        fo.write(f'{pfline}\n')
+                if chrom in chroms:
+                    if lcounter == 0:
                         flushline = curline
                         pname = readname
                         pdist = interdist
+                    else:
+                        if readname == pname:
+                            if (interdist > pdist):
+                                flushline = curline
+                                pname = readname
+                                pdist = interdist
+                            else:
+                                pass
 
-                lcounter += 1
+                        else:
+                            pfline = flushline
+                            fo.write(f'{pfline}\n')
+                            flushline = curline
+                            pname = readname
+                            pdist = interdist
 
+                    lcounter += 1
+                    lastline = curline
+            #get last line
+            fo.write(f'{lastline}\n')
 
     except OSError:
         print('cannot open', tmpfh1)
+
+    shcmd2 = f'rm {tmpfh0} {tmpfh1}'
+    subprocess.call(shcmd2, shell=True)
 
 
 
