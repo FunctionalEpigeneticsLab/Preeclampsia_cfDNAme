@@ -23,6 +23,12 @@ level3 iterator
 all target
 '''
 
+def check_fexist(f):
+    if os.path.isfile(f) == True:
+        return(1)
+    else:
+        return(0)
+
 #def get_target(targetfh):
 #    tardict = dict()
 #    tartype = None
@@ -266,16 +272,57 @@ def index_frag_mc(inbam, outfh):
                 buffchunk = ""
 
 def fetch_target(inbam, indexfragfh, targetfh):
-    index_frag_mc(inbam, indexfragfh)
+    #index_frag_mc(inbam, indexfragfh)
     fhprefix = indexfragfh.rsplit('.',2)[0]
     tmpfh0 = f'{fhprefix}.tmp'
-    shcmd0 = f'gunzip -c {indexfragfh} > {tmpfh0}'
-    subprocess.call(shcmd0, shell=True)
+    #shcmd0 = f'gunzip -c {indexfragfh} > {tmpfh0}'
+    #subprocess.call(shcmd0, shell=True)
+    tmpfh1 = f'{fhprefix}.target.tmp'
+    #shcmd1 = f'bedtools intersect -a {tmpfh0} -b {targetfh} -wao > {tmpfh1}'
+    #subprocess.call(shcmd1, shell=True)
+    ##shcmd2 = f'rm {tmpfh0}'
+    ##subprocess.call(shcmd2, shell=True)
+
+    ###A fragment may overlap adjacent targets, assign the fragment to the target with greater overlap
+    ###prerequsite: duplicated entries are in order
+    pname = "NULL"
+    lcounter = 0
+    pdist = 0
+    flushline = ""
+
     outfh = f'{fhprefix}.target.bed'
-    shcmd1 = f'bedtools intersect -a {tmpfh0} -b {targetfh} -loj > {outfh}'
-    subprocess.call(shcmd1, shell=True)
-    shcmd2 = f'rm {tmpfh0}'
-    subprocess.call(shcmd2, shell=True)
+    try:
+        with open(tmpfh1, 'r') as fh, open(outfh, 'w') as fo:
+            for line in fh:
+                curline = line.strip()
+                (readname, interdist) = (line.strip().split("\t")[7], line.strip().split("\t")[13])
+                interdist = int(interdist)
+                if lcounter == 0:
+                    flushline = curline
+                    pname = readname
+                    pdist = interdist
+                else:
+                    if readname == pname:
+                        if (interdist > pdist):
+                            flushline = curline
+                            pname = readname
+                            pdist = interdist
+                        else:
+                            pass
+
+                    else:
+                        pfline = flushline
+                        fo.write(f'{pfline}\n')
+                        flushline = curline
+                        pname = readname
+                        pdist = interdist
+
+                lcounter += 1
+
+
+    except OSError:
+        print('cannot open', tmpfh1)
+
 
 
 if __name__ == '__main__':
