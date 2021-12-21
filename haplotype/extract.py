@@ -15,8 +15,8 @@ def format_extract(fraginfofh, outfh):
                 cstringl = []
                 cposl = []
                 (chrom, fleft, fright, flen, mcrate, mpos, umpos, fname, fxmstring, tarchr, tarstart, tarend, tartype, overlaps) = line.strip().split('\t')
-                if tarchr != ".":
-                    if mpos != "NULL" and umpos != "NULL":
+                if tarchr != "." and mpos != "NULL" and umpos != "NULL":
+                    if mpos != "NULL":
                         mposlist = mpos.split(",")
                         for Z in mposlist:
                             if int(Z) > int(tarstart) and int(Z) < int(tarend):
@@ -24,6 +24,7 @@ def format_extract(fraginfofh, outfh):
                             else:
                                 pass
 
+                    if umpos != "NULL":
                         umposlist = umpos.split(",")
                         for z in umposlist:
                             if int(z) > int(tarstart) and int(z) < int(tarend):
@@ -31,15 +32,15 @@ def format_extract(fraginfofh, outfh):
                             else:
                                 pass
 
-                        for cpos, cstring in sorted(tarhapdict.items(), key=lambda item: item[1]):
-                            cposl.append(str(cpos))
-                            cstringl.append(cstring)
+                    for cpos, cstring in sorted(tarhapdict.items(), key=lambda kv: kv[0]):
+                        cposl.append(str(cpos))
+                        cstringl.append(cstring)
 
-                        if cstringl:
-                            cstringf = ''.join(cstringl)
-                            cposf = ','.join(cposl)
-                            pfline = f'{tarchr}:{tarstart}-{tarend}\t{cstringf}\t1\t{cposf}\t{tartype}\n'
-                            fo.write(pfline)
+                    if cstringl:
+                        cstringf = ''.join(cstringl)
+                        cposf = ','.join(cposl)
+                        pfline = f'{tarchr}:{tarstart}-{tarend}\t{cstringf}\t1\t{cposf}\t{tartype}\n'
+                        fo.write(pfline)
 
     recordict = defaultdict()
 
