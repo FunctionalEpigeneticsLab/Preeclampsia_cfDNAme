@@ -120,7 +120,7 @@ PlotSumSam <- function(samples.file, outfh, outfig, covfh) {
     write.table(dtmatrix, outfh, row.names=FALSE, quote=FALSE, sep="\t")
     dtplot1 <- reshape2::melt(dtmatrix, id=c("sample","type"))
     dtplot2 <- reshape2::dcast(dtplot1, sample+variable ~ type, value.var="value")
-    #dtplot2 <- subset(dtplot2, sample != "tBT2260_217N1" & sample != "GC114391_715N1")
+    dtplot2 <- subset(dtplot2, sample != "tBT2260_217N1" & sample != "GC114391_715N1")
     dtplot2$time <- substr(dtplot2$sample,(nchar(dtplot2$sample)+1)-2,nchar(dtplot2$sample))
     dtplot2$time[dtplot2$time=="_T"] = "Tissue"
     dtplot2$time[dtplot2$time=="PE"] = "FFPE"
