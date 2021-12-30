@@ -169,7 +169,7 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
             filterbam = '%s/%s.merge.deduplicated.filtered.FR.bam' % (sample_sub_workdir, sampleid)
             #filter out unmapped reads (4), secondary alignment(256), supplementary alignment(2048), mapping quality < 40 -- due to soft clipping, set mapq high
             #pipe to awk to get rid of ambiguous aligment (reverse forward orientation in GATK definition)
-            filter_task = "%s view -h -@ 6 -F 4 -F 256 -F 2048 -q 40 %s | awk -F'\t' '(!($2==83 && $9>0)) && (!($2==163 && $9<0)) && (!($2==99 && $9<0)) && (!($2==147 && $9>0)) {print $0}' | %s view -@ 6 -hbS - > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
+            filter_task = "%s view -h -@ 6 -F 4 -F 256 -F 2048 -q 40 %s | awk -F'\\t' '(!($2==83 && $9>0)) && (!($2==163 && $9<0)) && (!($2==99 && $9<0)) && (!($2==147 && $9>0)) {print $0}' | %s view -@ 6 -hbS - > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
             fo.write(filter_task)
 
             extract_task = '%s --ignore 10 --ignore_r2 15 --ignore_3prime 3 --ignore_3prime_r2 3 --CX -p --samtools_path %s --gzip --parallel 2 -o %s --bedGraph %s\n\n' % (bismarkextractor, samtoolsdir, sample_sub_workdir, filterbam)
@@ -214,7 +214,7 @@ def write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir):
             filteredbam = '%s/%s.merge.deduplicated.filtered.FR.bam' % (DNAalign_sub_workdir, sampleid)
             ###bismark bam not in standard GATK bam format, need to add readgroup and sort before feeding into GATK programs
             infilteredbam = '%s/%s.merge.deduplicated.filtered.FR.sorted.bam' % (DNAalign_sub_workdir, sampleid)
-            addrgsort_task = '%s -jar %s AddOrReplaceReadGroups INPUT=%s OUTPUT=%s RGLB=BSseq RGPL=Illumina RGSM=%s RGPU=GC SORT_ORDER=coordinate CREATE_INDEX=true\n\n' % (java, picard, filteredbam, infilteredbam, sampleid)
+            addrgsort_task = '%s -Xmx4G -XX:-UsePerfData -XX:-UseParallelGC -Djava.io.tmpdir=%s -jar %s AddOrReplaceReadGroups INPUT=%s OUTPUT=%s RGLB=BSseq RGPL=Illumina RGSM=%s RGPU=GC SORT_ORDER=coordinate CREATE_INDEX=true\n\n' % (java, logdir, picard, filteredbam, infilteredbam, sampleid)
             fo.write(addrgsort_task)
 
             #count coverage in terms of fragments (overlapped pair-end reads)
