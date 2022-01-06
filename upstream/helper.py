@@ -37,8 +37,9 @@ def get_dir_config():
 
     fastqdir = parser.get('configDir', 'fastqdir')
     workdir = parser.get('configDir', 'workdir')
+    runscriptdir = parser.get('configDir', 'runscriptdir')
 
-    return(fastqdir, workdir)
+    return(fastqdir, workdir, runscriptdir)
 
 def get_run_config():
     parser = configparser.ConfigParser()
@@ -57,6 +58,7 @@ def get_run_config():
     gatk = parser.get('configTool', 'gatk')
     picard = parser.get('configTool', 'picard')
     addsourcetool = parser.get('configTool', 'addsourcetool')
+    python = parser.get('configTool', 'python')
 
     bismarkreference = parser.get('configFile', 'bismarkreference')
     reference = parser.get('configFile', 'reference')
@@ -64,7 +66,7 @@ def get_run_config():
     targetflank50 = parser.get('configFile', 'targetflank50')
     targetflank100 = parser.get('configFile', 'targetflank100')
 
-    return(samtools, samtoolsdir, fastqc, trimtool, bismark, bismarkdedup, bismarkextractor, bismarkcytosine, java, gatk, picard, addsourcetool, bismarkreference, reference, target, targetflank50, targetflank100)
+    return(samtools, samtoolsdir, fastqc, trimtool, bismark, bismarkdedup, bismarkextractor, bismarkcytosine, java, gatk, picard, addsourcetool, python, bismarkreference, reference, target, targetflank50, targetflank100)
 
 def get_DNA_sample():
     parser = configparser.ConfigParser()

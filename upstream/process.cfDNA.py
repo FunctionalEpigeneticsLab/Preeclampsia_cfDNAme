@@ -5,8 +5,8 @@ import os
 import time
 import helper
 
-(fastqdir, workdir) = helper.get_dir_config()
-(samtools, samtoolsdir, fastqc, trimtool, bismark, bismarkdedup, bismarkextractor, bismarkcytosine, java, gatk, picard, addsourcetool, bismarkreference, reference, target, targetflank50, targetflank100) = helper.get_run_config()
+(fastqdir, workdir, runscriptdir) = helper.get_dir_config()
+(samtools, samtoolsdir, fastqc, trimtool, bismark, bismarkdedup, bismarkextractor, bismarkcytosine, java, gatk, picard, addsourcetool, python, bismarkreference, reference, target, targetflank50, targetflank100) = helper.get_run_config()
 DNASampleIDs = helper.get_DNA_sample()
 (DNAtrimoption) = helper.get_option()
 (noticeaccount, creditaccount) = helper.get_userinfo()
@@ -172,7 +172,7 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
             #### NOT USED FOR CUSTOMIZED SIZE CALCULATION pipe to awk to get rid of ambiguous aligment (reverse forward orientation in GATK definition)
             ####filter_task = "%s view -h -@ 6 -F 4 -F 256 -F 2048 -q 40 %s | awk -F'\\t' '(!($2==83 && $9>0)) && (!($2==163 && $9<0)) && (!($2==99 && $9<0)) && (!($2==147 && $9>0)) {print $0}' | %s view -@ 6 -hbS - > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
             filterbam = '%s/%s.merge.deduplicated.filtered.bam' % (sample_sub_workdir, sampleid)
-            filter_task = "%s view -bS -@ 6 -F 4 -F 256 -F 2048 -q 40 %s > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
+            filter_task = "%s view -bS -@ 6 -F 4 -F 256 -F 2048 -q 40 %s > %s\n\n" % (samtools, dedupbam, filterbam)
             fo.write(filter_task)
 
             extract_task = '%s --ignore 10 --ignore_r2 15 --ignore_3prime 3 --ignore_3prime_r2 3 -p --samtools_path %s --gzip --parallel 2 -o %s --bedGraph %s\n\n' % (bismarkextractor, samtoolsdir, sample_sub_workdir, filterbam)
@@ -214,14 +214,16 @@ def write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir):
             #each step based on previous step; maybe wrap previous step into this step
             DNAalign_workdir = workdir + '/3_Bismark'
             DNAalign_sub_workdir = DNAalign_workdir + '/' + sampleid
-            filteredbam = '%s/%s.merge.deduplicated.filtered.bam' % (sample_sub_workdir, sampleid)
+            filteredbam = '%s/%s.merge.deduplicated.filtered.bam' % (DNAalign_sub_workdir, sampleid)
             ###bismark bam not in standard GATK bam format, need to add readgroup and sort before feeding into GATK programs
             infilteredbam = '%s/%s.merge.deduplicated.filtered.sorted.bam' % (DNAalign_sub_workdir, sampleid)
             addrgsort_task = '%s -Xmx4G -XX:-UsePerfData -XX:-UseParallelGC -Djava.io.tmpdir=%s -jar %s AddOrReplaceReadGroups INPUT=%s OUTPUT=%s RGLB=BSseq RGPL=Illumina RGSM=%s RGPU=GC SORT_ORDER=coordinate CREATE_INDEX=true\n\n' % (java, logdir, picard, filteredbam, infilteredbam, sampleid)
             fo.write(addrgsort_task)
-            indexbam_task = '%s index %s/%s.merge.deduplicated.filtered.sorted.bam\n\n' % (samtools, DNAalign_sub_workdir, sampleid)
-            ################################!!!!!!!!!!!!!!!!!work here
-            calfinsert_task = '%s %s %s %s' % (python, getinsert, finsertout, finsertpdf)
+            indexbam_task = '%s index %s\n\n' % (samtools, infilteredbam)
+            fo.write(indexbam_task)
+
+            calfinsert_task = '%s %s/upstream/getinsertsize.py %s\n\n' % (python, runscriptdir, infilteredbam)
+            fo.write(calfinsert_task)
 
             #count coverage in terms of fragments (overlapped pair-end reads)
             fragcov = '%s.merge.deduplicated.filtered.sorted.fragcov' % (sampleid)
