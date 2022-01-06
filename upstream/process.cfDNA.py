@@ -96,7 +96,8 @@ def write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, log
                 if fastqfile.startswith(sampleid) and fastqfile.endswith('R1.fastq.gz'):
                     curreadR2 = fastqfile.replace("R1","R2")
                     readpairs = '%s/%s %s/%s' % (fastqdir, fastqfile, fastqdir, curreadR2)
-                    baseparam = '--length 36'
+                    #for cfDNA, use 20bp
+                    baseparam = '--length 20'
                     if (DNAtrimoption == "default"):
                         addparam = baseparam
                     else:
@@ -124,7 +125,7 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
 
         with open(samplescript, 'w') as fo:
             pbsjobtime = '#PBS -l walltime=%s:00:00\n' % (12)
-            pbsnode = '#PBS -l nodes=1:ppn=%s\n' % (6)
+            pbsnode = '#PBS -l nodes=1:ppn=%s\n' % (4)
             pbsuser = '#PBS -M %s\n' % (noticeaccount)
             pbsjobname = '#PBS -N DNAalign_%s\n' % (sampleid)
             pbscredit = '#PBS -A %s\n\n' % (creditaccount)
@@ -150,8 +151,8 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
             trimFQR2 = trimFQR1.replace("R1_val_1.fq.gz","R2_val_2.fq.gz")
             #need samtools to get correct file handle
             #directional library
-            #For cfDNA, allow soft clipping
-            DNAalign_task = '%s --local -p 6 --genome %s --output_dir %s --temp_dir %s --samtools_path %s --gzip -1 %s -2 %s\n\n' % (bismark, bismarkreference, sample_sub_workdir, sample_sub_workdir, samtoolsdir, trimFQR1, trimFQR2)
+            #For cfDNA, align with after removing adaptors and allow soft clipping (no dovetail allowed without hard clipping)
+            DNAalign_task = '%s --local --no_dovetail -p 6 --genome %s --output_dir %s --temp_dir %s --samtools_path %s --gzip -1 %s -2 %s\n\n' % (bismark, bismarkreference, sample_sub_workdir, sample_sub_workdir, samtoolsdir, trimFQR1, trimFQR2)
             fo.write(DNAalign_task)
 
             #get output name in another way; this replacement is stupid
@@ -166,13 +167,15 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
                 dedupbam = '%s/%s.deduplicated.bam' % (sample_sub_workdir, sampleid)
             fo.write(dedup_task)
 
-            filterbam = '%s/%s.merge.deduplicated.filtered.FR.bam' % (sample_sub_workdir, sampleid)
+            #filterbam = '%s/%s.merge.deduplicated.filtered.FR.bam' % (sample_sub_workdir, sampleid)
             #filter out unmapped reads (4), secondary alignment(256), supplementary alignment(2048), mapping quality < 40 -- due to soft clipping, set mapq high
-            #pipe to awk to get rid of ambiguous aligment (reverse forward orientation in GATK definition)
-            filter_task = "%s view -h -@ 6 -F 4 -F 256 -F 2048 -q 40 %s | awk -F'\\t' '(!($2==83 && $9>0)) && (!($2==163 && $9<0)) && (!($2==99 && $9<0)) && (!($2==147 && $9>0)) {print $0}' | %s view -@ 6 -hbS - > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
+            #### NOT USED FOR CUSTOMIZED SIZE CALCULATION pipe to awk to get rid of ambiguous aligment (reverse forward orientation in GATK definition)
+            ####filter_task = "%s view -h -@ 6 -F 4 -F 256 -F 2048 -q 40 %s | awk -F'\\t' '(!($2==83 && $9>0)) && (!($2==163 && $9<0)) && (!($2==99 && $9<0)) && (!($2==147 && $9>0)) {print $0}' | %s view -@ 6 -hbS - > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
+            filterbam = '%s/%s.merge.deduplicated.filtered.bam' % (sample_sub_workdir, sampleid)
+            filter_task = "%s view -bS -@ 6 -F 4 -F 256 -F 2048 -q 40 %s > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
             fo.write(filter_task)
 
-            extract_task = '%s --ignore 10 --ignore_r2 15 --ignore_3prime 3 --ignore_3prime_r2 3 --CX -p --samtools_path %s --gzip --parallel 2 -o %s --bedGraph %s\n\n' % (bismarkextractor, samtoolsdir, sample_sub_workdir, filterbam)
+            extract_task = '%s --ignore 10 --ignore_r2 15 --ignore_3prime 3 --ignore_3prime_r2 3 -p --samtools_path %s --gzip --parallel 2 -o %s --bedGraph %s\n\n' % (bismarkextractor, samtoolsdir, sample_sub_workdir, filterbam)
             fo.write(extract_task)
 
     write_sub_script_qsub(DNAalign_scriptdir, 'DNAalign', DNAalign_workdir, logdir)
@@ -211,23 +214,26 @@ def write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir):
             #each step based on previous step; maybe wrap previous step into this step
             DNAalign_workdir = workdir + '/3_Bismark'
             DNAalign_sub_workdir = DNAalign_workdir + '/' + sampleid
-            filteredbam = '%s/%s.merge.deduplicated.filtered.FR.bam' % (DNAalign_sub_workdir, sampleid)
+            filteredbam = '%s/%s.merge.deduplicated.filtered.bam' % (sample_sub_workdir, sampleid)
             ###bismark bam not in standard GATK bam format, need to add readgroup and sort before feeding into GATK programs
-            infilteredbam = '%s/%s.merge.deduplicated.filtered.FR.sorted.bam' % (DNAalign_sub_workdir, sampleid)
+            infilteredbam = '%s/%s.merge.deduplicated.filtered.sorted.bam' % (DNAalign_sub_workdir, sampleid)
             addrgsort_task = '%s -Xmx4G -XX:-UsePerfData -XX:-UseParallelGC -Djava.io.tmpdir=%s -jar %s AddOrReplaceReadGroups INPUT=%s OUTPUT=%s RGLB=BSseq RGPL=Illumina RGSM=%s RGPU=GC SORT_ORDER=coordinate CREATE_INDEX=true\n\n' % (java, logdir, picard, filteredbam, infilteredbam, sampleid)
             fo.write(addrgsort_task)
+            indexbam_task = '%s index %s/%s.merge.deduplicated.filtered.sorted.bam\n\n' % (samtools, DNAalign_sub_workdir, sampleid)
+            ################################!!!!!!!!!!!!!!!!!work here
+            calfinsert_task = '%s %s %s %s' % (python, getinsert, finsertout, finsertpdf)
 
             #count coverage in terms of fragments (overlapped pair-end reads)
-            fragcov = '%s.merge.deduplicated.filtered.FR.sorted.fragcov' % (sampleid)
+            fragcov = '%s.merge.deduplicated.filtered.sorted.fragcov' % (sampleid)
             fragcov_task = '%s -Xmx4G -XX:-UsePerfData -XX:-UseParallelGC -Djava.io.tmpdir=%s -jar %s -T DepthOfCoverage -R %s -o %s/%s -I %s -L %s --countType COUNT_FRAGMENTS -drf DuplicateRead\n\n' % (java, logdir, gatk, reference, cov_sub_workdir, fragcov, infilteredbam, target)
             fo.write(fragcov_task)
-            ontarbam = '%s/%s.merge.deduplicated.filtered.FR.sorted.ontar.bam' % (DNAalign_sub_workdir, sampleid)
+            ontarbam = '%s/%s.merge.deduplicated.filtered.sorted.ontar.bam' % (DNAalign_sub_workdir, sampleid)
             targetbam_task = '%s view -hbS %s -L %s > %s\n\n' % (samtools, infilteredbam, target, ontarbam)
             fo.write(targetbam_task)
-            allinsert = '%s.merge.deduplicated.filtered.FR.sorted.insert_size_metrics' % (sampleid)
+            allinsert = '%s.merge.deduplicated.filtered.sorted.insert_size_metrics' % (sampleid)
             allinsertS_task = '%s -Xmx4G -jar %s CollectInsertSizeMetrics I=%s O=%s/%s.txt H=%s/%s.pdf DEVIATIONS=50 INCLUDE_DUPLICATES=false\n\n' % (java, picard, infilteredbam, cov_sub_workdir, allinsert, cov_sub_workdir, allinsert)
             fo.write(allinsertS_task)
-            ontarinsert = '%s.merge.deduplicated.filtered.FR.sorted.ontar.insert_size_metrics' % (sampleid)
+            ontarinsert = '%s.merge.deduplicated.filtered.sorted.ontar.insert_size_metrics' % (sampleid)
             ontarinsertS_task = '%s -Xmx4G -jar %s CollectInsertSizeMetrics I=%s O=%s/%s.txt H=%s/%s.pdf DEVIATIONS=50 INCLUDE_DUPLICATES=false\n\n' % (java, picard, ontarbam, cov_sub_workdir, ontarinsert, cov_sub_workdir, ontarinsert)
             fo.write(ontarinsertS_task)
 
