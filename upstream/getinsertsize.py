@@ -83,9 +83,9 @@ def get_insert_size(inbam):
         ax2.set_ylim(ymax=ax.get_ylim()[1] / hist_area)
         sns.kdeplot(farr,ax=ax2)
         plt.xlabel("InsertSize")
-        plt.tight_layout()
         plt.setp(ax.patches, linewidth=0)
         plt.title(figtitle)
+        plt.tight_layout()
         plt.savefig(outfig)
         plt.close(outfig)
 

@@ -75,7 +75,7 @@ def write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, log
     for sampleid in DNASampleIDs:
         samplescript = trim_scriptdir + '/' + sampleid + '.DNAtrim.task.pbs'
         with open(samplescript, 'w') as fo:
-            pbsjobtime = '#PBS -l walltime=%s:00:00\n' % (1)
+            pbsjobtime = '#PBS -l walltime=%s:00:00\n' % (3)
             pbsnode = '#PBS -l nodes=1:ppn=%s\n' % (2)
             pbsuser = '#PBS -M %s\n' % (noticeaccount)
             pbsjobname = '#PBS -N trim_%s\n' % (sampleid)
@@ -124,7 +124,7 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
         lanefastqR2 = []
 
         with open(samplescript, 'w') as fo:
-            pbsjobtime = '#PBS -l walltime=%s:00:00\n' % (12)
+            pbsjobtime = '#PBS -l walltime=%s:00:00\n' % (24)
             pbsnode = '#PBS -l nodes=1:ppn=%s\n' % (4)
             pbsuser = '#PBS -M %s\n' % (noticeaccount)
             pbsjobname = '#PBS -N DNAalign_%s\n' % (sampleid)
@@ -152,7 +152,7 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
             #need samtools to get correct file handle
             #directional library
             #For cfDNA, align with after removing adaptors and allow soft clipping (no dovetail allowed without hard clipping)
-            DNAalign_task = '%s --local --no_dovetail -p 6 --genome %s --output_dir %s --temp_dir %s --samtools_path %s --gzip -1 %s -2 %s\n\n' % (bismark, bismarkreference, sample_sub_workdir, sample_sub_workdir, samtoolsdir, trimFQR1, trimFQR2)
+            DNAalign_task = '%s --local --no_dovetail -p 4 --genome %s --output_dir %s --temp_dir %s --samtools_path %s --gzip -1 %s -2 %s\n\n' % (bismark, bismarkreference, sample_sub_workdir, sample_sub_workdir, samtoolsdir, trimFQR1, trimFQR2)
             fo.write(DNAalign_task)
 
             #get output name in another way; this replacement is stupid
@@ -172,7 +172,7 @@ def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir
             #### NOT USED FOR CUSTOMIZED SIZE CALCULATION pipe to awk to get rid of ambiguous aligment (reverse forward orientation in GATK definition)
             ####filter_task = "%s view -h -@ 6 -F 4 -F 256 -F 2048 -q 40 %s | awk -F'\\t' '(!($2==83 && $9>0)) && (!($2==163 && $9<0)) && (!($2==99 && $9<0)) && (!($2==147 && $9>0)) {print $0}' | %s view -@ 6 -hbS - > %s\n\n" % (samtools, dedupbam, samtools, filterbam)
             filterbam = '%s/%s.merge.deduplicated.filtered.bam' % (sample_sub_workdir, sampleid)
-            filter_task = "%s view -bS -@ 6 -F 4 -F 256 -F 2048 -q 40 %s > %s\n\n" % (samtools, dedupbam, filterbam)
+            filter_task = "%s view -bS -@ 4 -F 4 -F 256 -F 2048 -q 40 %s > %s\n\n" % (samtools, dedupbam, filterbam)
             fo.write(filter_task)
 
             extract_task = '%s --ignore 10 --ignore_r2 15 --ignore_3prime 3 --ignore_3prime_r2 3 -p --samtools_path %s --gzip --parallel 2 -o %s --bedGraph %s\n\n' % (bismarkextractor, samtoolsdir, sample_sub_workdir, filterbam)
