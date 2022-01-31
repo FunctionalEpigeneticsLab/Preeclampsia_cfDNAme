@@ -22,11 +22,12 @@ def getmavgcountfromcov(samplelist, capindexfh, outdir):
             (infh, fhprefix) = l0.strip().split('\t')
             sortfh = f'{outdir}/{fhprefix}.sorted_by_name.deduplicated.bismark.cov.sorted.bed.gz'
             shcmd0 = f'bedtools sort -i {infh} | gzip - > {sortfh}'
+            print(f'processing {infh}')
             subprocess.call(shcmd0, shell=True)
 
             ontarfh = f'{outdir}/{fhprefix}.sorted_by_name.deduplicated.bismark.cov.sorted.ontar.bed.gz'
             shcmd1 = f'bedtools intersect -a {capindexfh} -b {sortfh} -wao | gzip - > {ontarfh}'
-            print(shcmd1)
+            print("extracting on-target counts")
             subprocess.call(shcmd1, shell=True)
 
             if check_fexist(ontarfh):
@@ -44,7 +45,7 @@ def getmavgcountfromcov(samplelist, capindexfh, outdir):
                                 (totmcnt, totumcnt, dchrom, dcapstart, dcapend, dcapsite) = mcounter[capindex].split(':')
                                 totmcnt = int(totmcnt)+int(mcount)
                                 totumcnt = int(totumcnt)+int(umcount)
-                                storeval = f'{mcount}:{umcount}:{dchrom}:{dcapstart}:{dcapend}:{dcapsite}'
+                                storeval = f'{totmcnt}:{totumcnt}:{dchrom}:{dcapstart}:{dcapend}:{dcapsite}'
                                 mcounter[capindex] = storeval
 
                             else:
