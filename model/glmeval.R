@@ -5,49 +5,63 @@ library(e1071)
 library(pROC)
 library(glmnet)
 
-#args <- commandArgs(TRUE)
-
 LoadProbeIndex <- function(indexfh) {
     idx <- fread(indexfh, header=TRUE, sep="\t", data.table=FALSE)
+    idx <- idx[order(idx$Index),]
     return(idx)
 }
 
-GetCountMatrix <- function(samplelist, indexfh, cntoption="mval") {
+GetCountMatrix <- function(samplelist, indexfh, cntoption="mval", outfh) {
     #' @title Read multiple samples into a data matrix
     #' @param samplelist A tab-separated file contains structured sample id and sample filename 'SAMPLE.ID\tSAMPLE.FILENAME'
     #' @param indexfh A tab-separated file contains capture information 'CHROM\tSTART\tEND\tINDEX\tPROBE'
     samlist <- fread(samplelist, header=TRUE, sep="\t", colClasses=c("character", "character"), data.table=FALSE)
     idx <- LoadProbeIndex(indexfh)
     #datalist <- lapply()
-    dtmat <- data.frame()
+    inmat <- matrix()
     
     for (i in 1:nrow(samlist)) {
-        print(paste("reading in", samlist[i,1]))
-	curfh <- fread(samlist[i,1], header=FALSE, sep="\t", data.table=FALSE)
-	colnames(curfh) <- c("Chromosome","Start","End","Index","mCount","umCount","Probe")
+        print(paste("reading in", samlist[i,"SAMPLE.FILENAME"]))
+	curfh <- fread(samlist[i,"SAMPLE.FILENAME"], header=TRUE, sep="\t", data.table=FALSE)
 	curfh <- merge(idx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
 	curfh <- curfh[order(curfh$Index),]
 	
 	if (cntoption == "mval") {
-	    curfh$calval <- log2((curfh$mCount+1)/(curfh$umCount+1))
+	    curfh$calval <- log2((curfh$Methylated+1)/(curfh$Unmethylated+1))
 	} else if (cntoption == "betaval") {
-	    curfh$calval <- curfh$mCount/(curfh$mCount+curfh$umCount)
+	    curfh$calval <- curfh$Methylated/(curfh$Methylated+curfh$Unmethylated)
 	} else {
 	    print("specify value to be calculated")
 	}
 
 	if (i == 1) {
-	    dtmat <- data.frame(t(curfh$calval))
+	    inmat <- matrix(curfh$calval,nrow=1)
 	} else {
-	    dtmat <- rbind(dtmat, data.frame(t(curfh$calval)))
+	    inmat <- rbind(inmat, matrix(curfh$calval,nrow=1))
 	}
     }
-    colnames(dtmat) <- samlist$SAMPLE.ID
+    colnames(inmat) <- idx$Index
+    rownames(inmat) <- samlist$SAMPLE.ID
+    write.table(inmat,outfh,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
+    return(inmat)
+}
+
+FetchInfo2Matrix <- function(samplelist, indexfh, metadata, keepindex) {
+    dtmat <- GetCountMatrix(samplelist, indexfh, cntoption="mval")
+    metafh <- fread(metadata, header=TRUE, sep="\t", data.table=FALSE)
+    metasimp <- metaf[,c("MergeGCcode","MeanDep","StudyID","Case.Ctrl")]
+    colnames(metasimp) <- c("Sample","MeanDep","StudyID","PE")
+    dfraw <- merge(metasimp, dtmat, by=c("Sample"), all.x=TRUE)
+    df <- subset(dfraw, MeanDep>5)
+    inmat <- df[, -which(names(df) %in% c("Sample","MeanDep","StudyID","PE"))]
+    inmat <- as.matrix(inmat)
     return(dtmat)
 }
 
+
+#############for input from seqmonk
 CombineForwardReverseMatrix <- function(frlist, indexfh, outfh) {
-    #for input from seqmonk count matrix
+    
     samlist <- fread(frlist, header=FALSE, sep="\t", colClasses=c("character", "character"), data.table=FALSE)
     idx <- LoadProbeIndex(indexfh)
     dtmat <- data.frame()
