@@ -34,6 +34,7 @@ def getmavgcountfromcov(samplelist, capindexfh, outdir):
                 mcounter = defaultdict()
                 outfh = f'{outdir}/{fhprefix}.mavg.count.tsv'
                 with open(outfh, 'w') as fo:
+                    fo.write("Chromosome\tStart\tEnd\tIndex\tMethylated\tUnmethylated\tProbe\n")
                     with gzip.open(ontarfh, 'r') as fh1:
                         for l1 in fh1:
                             l1d = l1.decode('utf-8')
@@ -56,7 +57,8 @@ def getmavgcountfromcov(samplelist, capindexfh, outdir):
                                 mcounter[capindex] = storeval
 
 
-                    for capindex, storeval in sorted(mcounter.items(), key=lambda item: int(item[0][1:])):
+                    #for capindex, storeval in sorted(mcounter.items(), key=lambda item: int(item[0][1:])):
+                    for capindex, storeval in sorted(mcounter.items(), key=lambda item: int(item[0])):
                         (totmcnt, totumcnt, chrom, capstart, capend, capsite) = mcounter[capindex].split(':')
                         pfline = f'{chrom}\t{capstart}\t{capend}\t{capindex}\t{totmcnt}\t{totumcnt}\t{capsite}\n'
                         fo.write(pfline)
