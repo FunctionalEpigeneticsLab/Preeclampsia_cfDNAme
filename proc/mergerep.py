@@ -3,6 +3,8 @@
 import sys
 import os
 import re
+import subprocess
+from collections import defaultdict
 
 def mergeseqmetainfo(codefh, metafh, seqdepfh, bsconversion, outmergefh):
     '''
@@ -106,5 +108,61 @@ def mergeseqmetainfo(codefh, metafh, seqdepfh, bsconversion, outmergefh):
             pfline = f'{ssid}\t{pheno0}\t{pheno1}\t{gad}\t{stval}\t{mermeandep}\t{mermeddep}\t{BSflag}\n'
             fo.write(pfline)
 
+def mergerepcount(outmergefh, countdir, outdir, depthresh):
+    depthresh = float(depthresh)
+
+    with open(outmergefh, 'r') as fh0:
+        for l0 in fh0:
+            if not l0.startswith('SubjectID'):
+                l0info = l0.strip().split('\t')
+                (subjid, samids, meandep, bsflag) = (l0info[0], l0info[4], l0info[5], l0info[7])
+                subjoutfh = f'{outdir}/{subjid}.mavg.count.merge.tsv'
+                if float(meandep) >= depthresh:
+                    samlist = samids.split(':')
+                    if len(samlist) == 1:
+                        samid = samids
+                        if bsflag != "BSFailed":
+                            saminfh = f'{countdir}/{samid}.mavg.count.tsv'
+                            shcmd0 = f'cp {saminfh} {subjoutfh}'
+                            subprocess.call(shcmd0, shell=True)
+                            fo0.write(l0)
+                        else:
+                            pass
+                    else:
+                        mergedict = defaultdict()
+                        (totm, totum) = (0, 0)
+                        for i in range(0,len(samlist)):
+                            samid = samlist[i]
+                            if 'FBS' in samid:
+                                pass
+                            else:
+                                saminfh = f'{countdir}/{samid}.mavg.count.tsv'
+                                with open(saminfh, 'r') as subfh:
+                                    for subl in subfh:
+                                        if not subl.startswith('Chromosome'):
+                                            (Chromosome,Start,End,subIndex,Methylated,Unmethylated,Probe) = subl.strip().split('\t')
+
+                                            if subIndex in mergedict:
+                                                ssubval = mergedict[subIndex].split(':')
+                                                (totm, totum) = (ssubval[0], ssubval[1])
+                                                totm = int(totm) + int(Methylated)
+                                                totum = int(totum) + int(Unmethylated)
+                                                subval = f'{totm}:{totum}:{Chromosome}:{Start}:{End}:{Probe}'
+                                                mergedict[subIndex] = subval
+                                            else:
+                                                subval = f'{Methylated}:{Unmethylated}:{Chromosome}:{Start}:{End}:{Probe}'
+                                                mergedict[subIndex] = subval
+
+                        with open(subjoutfh, 'w') as fo:
+                            fo.write("Chromosome\tStart\tEnd\tIndex\tMethylated\tUnmethylated\tProbe\n")
+                            for subIndex, subval in sorted(mergedict.items(), key=lambda item: int(item[0])):
+                                (totm,totum,Chromosome,Start,End,Probe) = subval.split(':')
+                                pfline = f'{Chromosome}\t{Start}\t{End}\t{subIndex}\t{totm}\t{totum}\t{Probe}\n'
+                                fo.write(pfline)
+
+def mergeproc(codefh, metafh, seqdepfh, bsconversion, outmergefh, countdir, outdir, depthresh):
+    mergeseqmetainfo(codefh, metafh, seqdepfh, bsconversion, outmergefh)
+    mergerepcount(outmergefh, countdir, outdir, depthresh)
+
 if __name__ == '__main__':
-    mergeseqmetainfo(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
+    mergeproc(sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4],sys.argv[5],sys.argv[6],sys.argv[7],sys.argv[8])
