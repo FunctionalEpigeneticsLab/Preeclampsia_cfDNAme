@@ -61,12 +61,12 @@ def mergeseqmetainfo(codefh, metafh, seqdepfh, bsconversion, outmergefh):
         pheno0_pos = int(headerl.index('Case.Ctrl'))
         pheno1_pos = int(headerl.index('Case.Control'))
 
-        if re.search(r'GA.NIPT1.Days', headerline):
-            gad_pos = int(headerl.index('GA.NIPT1.Days'))
+        if re.search(r'GA.NIPT.Days', headerline):
+            gad_pos = int(headerl.index('GA.NIPT.Days'))
         elif re.search(r'GA.NIPT2.Days', headerline):
             gad_pos = int(headerl.index('GA.NIPT2.Days'))
-        elif re.search(r'GA.last.pregnancy.days', headerline):
-            gad_pos = int(headerl.index('GA.last.pregnancy.days'))
+        elif re.search(r'GAD.days', headerline):
+            gad_pos = int(headerl.index('GAD.days'))
         else:
             raise ValueError("gestational age field not found")
 
@@ -125,7 +125,7 @@ def mergerepcount(outmergefh, countdir, outdir, depthresh):
                             saminfh = f'{countdir}/{samid}.mavg.count.tsv'
                             shcmd0 = f'cp {saminfh} {subjoutfh}'
                             subprocess.call(shcmd0, shell=True)
-                            fo0.write(l0)
+
                         else:
                             pass
                     else:
