@@ -25,7 +25,7 @@ GetCountMatrix <- function(sampleinfo, inputdir, indexfh, cntoption="mval", outm
     
     for (i in 1:nrow(saminfo)) {
         print(paste("reading in subject ", saminfo[i,"SubjectID"]))
-	samfile <- paste(saminfo[i,"SubjectID"], ".mavg.count.merge.tsv")
+	samfile <- paste0(saminfo[i,"SubjectID"], ".mavg.count.merge.tsv")
 	samfh <- file.path(inputdir, samfile)
 	curfh <- fread(samfh, header=TRUE, sep="\t", data.table=FALSE)
 	curfh <- merge(idx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
@@ -56,19 +56,18 @@ FilterCountMatrixFeat <- function(sampleinfo, inputdir, indexfh, cntoption, outm
     flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
     keepindex <- flagidx$Index[flagidx$FlagIndex==1]
     ftmat <- inmat[,colnames(inmat) %in% keepindex]
-    print(paste0("Keep ", dim(ftmat)[2], "targets for ", dim(ftmat)[1], " subjects"))
+    print(paste0("Keep ", dim(ftmat)[2], " targets for ", dim(ftmat)[1], " subjects"))
     return(ftmat)
 }
 
-AssessGLMLoo <- function(sampleinfo, inputdir, indexfh, cntoption, outmat, flagindexfh, alpha, lambda, outpred, outfig) {
+AssessGLMLoo <- function(ftmat, alpha, lambda, outpred, outfig) {
     alpha <- as.numeric(alpha)
     lambda <- as.numeric(lambda)
     glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",lambda)
     print(glmparam)
     
-    ftmat <- FilterCountMatrixFeat(sampleinfo, inputdir, indexfh, cntoption, outmat, flagindexfh)
     sidgroup <- row.names(ftmat)
-    phenogroup <- sapply(strsplit(sidgroup), split=':', fixed=TRUE), function(x) (x[2]))
+    phenogroup <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
     phenogroup <- as.factor(phenogroup)
 
     if (length(levels(phenogroup)) == 2) {
@@ -96,7 +95,7 @@ AssessGLMLoo <- function(sampleinfo, inputdir, indexfh, cntoption, outmat, flagi
         rglm.preds.coef <- predict(rglm.model, testdt, type="coefficient", s=lambda)
         alltruegroup <- c(alltruegroup, testgroup)
         allpredval <- c(allpredval, rglm.preds.res)
-        write.table(paste0("predict ", sidgroup[x], "\t", testgroup, " as ", rglm.preds.type, "\t", rglm.preds.res),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+        write.table(paste0("predict ", sidgroup[x], "\t", testgroup, " as ", rglm.preds.type, "\t", rglm.preds.res),outpred,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
         return(allpredval)
     })
     
@@ -106,7 +105,7 @@ AssessGLMLoo <- function(sampleinfo, inputdir, indexfh, cntoption, outmat, flagi
     dev.off()
     print(glmperfm$auc)
     print(glmperfm$ci)
-    runacc <- table(dtnumgroup, ifelse(loopreds>0.5, "Case", "Ctrl"))
+    runacc <- table(phenogroup, ifelse(loopreds>0.5, "Case", "Ctrl"))
     print(runacc)
 }
 
