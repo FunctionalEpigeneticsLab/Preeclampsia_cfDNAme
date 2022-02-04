@@ -11,18 +11,23 @@ LoadProbeIndex <- function(indexfh) {
     return(idx)
 }
 
-GetCountMatrix <- function(samplelist, indexfh, cntoption="mval", outfh) {
+GetCountMatrix <- function(sampleinfo, inputdir, indexfh, cntoption="mval", outmat) {
     #' @title Read multiple samples into a data matrix
-    #' @param samplelist A tab-separated file contains structured sample id and sample filename 'SAMPLE.ID\tSAMPLE.FILENAME'
+    #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag'
+    #' @param inputdir A directory path to methylation count of all samples
     #' @param indexfh A tab-separated file contains capture information 'CHROM\tSTART\tEND\tINDEX\tPROBE'
-    samlist <- fread(samplelist, header=TRUE, sep="\t", colClasses=c("character", "character"), data.table=FALSE)
+    #' @param outmat An output file for combined matrix
+    
+    saminfo <- fread(sampleinfo, header=TRUE, sep="\t", colClasses=c("character","character","character","numeric","character","numeric","numeric","character"), data.table=FALSE)
     idx <- LoadProbeIndex(indexfh)
     #datalist <- lapply()
     inmat <- matrix()
     
-    for (i in 1:nrow(samlist)) {
-        print(paste("reading in", samlist[i,"SAMPLE.FILENAME"]))
-	curfh <- fread(samlist[i,"SAMPLE.FILENAME"], header=TRUE, sep="\t", data.table=FALSE)
+    for (i in 1:nrow(saminfo)) {
+        print(paste("reading in subject ", saminfo[i,"SubjectID"]))
+	samfile <- paste(saminfo[i,"SubjectID"], ".mavg.count.merge.tsv")
+	samfh <- file.path(inputdir, samfile)
+	curfh <- fread(samfh, header=TRUE, sep="\t", data.table=FALSE)
 	curfh <- merge(idx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
 	curfh <- curfh[order(curfh$Index),]
 	
@@ -41,21 +46,68 @@ GetCountMatrix <- function(samplelist, indexfh, cntoption="mval", outfh) {
 	}
     }
     colnames(inmat) <- idx$Index
-    rownames(inmat) <- samlist$SAMPLE.ID
-    write.table(inmat,outfh,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
+    rownames(inmat) <- paste0(saminfo$SubjectID,":",saminfo$Phenotype)
+    write.table(inmat,outmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
     return(inmat)
 }
 
-FetchInfo2Matrix <- function(samplelist, indexfh, metadata, keepindex) {
-    dtmat <- GetCountMatrix(samplelist, indexfh, cntoption="mval")
-    metafh <- fread(metadata, header=TRUE, sep="\t", data.table=FALSE)
-    metasimp <- metaf[,c("MergeGCcode","MeanDep","StudyID","Case.Ctrl")]
-    colnames(metasimp) <- c("Sample","MeanDep","StudyID","PE")
-    dfraw <- merge(metasimp, dtmat, by=c("Sample"), all.x=TRUE)
-    df <- subset(dfraw, MeanDep>5)
-    inmat <- df[, -which(names(df) %in% c("Sample","MeanDep","StudyID","PE"))]
-    inmat <- as.matrix(inmat)
-    return(dtmat)
+FilterCountMatrixFeat <- function(sampleinfo, inputdir, indexfh, cntoption, outmat, flagindexfh) {
+    inmat <- GetCountMatrix(sampleinfo, inputdir, indexfh, cntoption, outmat)
+    flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+    keepindex <- flagidx$Index[flagidx$FlagIndex==1]
+    ftmat <- inmat[,colnames(inmat) %in% keepindex]
+    print(paste0("Keep ", dim(ftmat)[2], "targets for ", dim(ftmat)[1], " subjects"))
+    return(ftmat)
+}
+
+AssessGLMLoo <- function(sampleinfo, inputdir, indexfh, cntoption, outmat, flagindexfh, alpha, lambda, outpred, outfig) {
+    alpha <- as.numeric(alpha)
+    lambda <- as.numeric(lambda)
+    glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",lambda)
+    print(glmparam)
+    
+    ftmat <- FilterCountMatrixFeat(sampleinfo, inputdir, indexfh, cntoption, outmat, flagindexfh)
+    sidgroup <- row.names(ftmat)
+    phenogroup <- sapply(strsplit(sidgroup), split=':', fixed=TRUE), function(x) (x[2]))
+    phenogroup <- as.factor(phenogroup)
+
+    if (length(levels(phenogroup)) == 2) {
+        levels(phenogroup) <- list("Ctrl"=0, "Case"=1)
+    } else {
+        stop("number of group greater than 2")
+    }
+    
+    n_train <- nrow(ftmat)
+    outheader <- paste(glmparam, "\nClassified samples:\n")
+    write.table(outheader,outpred,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+    alltruegroup <- c()
+    allpredgroup <- c()
+    allpredval <- c()
+
+    loopreds <- sapply(1:n_train, function(x) {
+        traindt <- ftmat[-x,]
+        traingroup <- phenogroup[-x]
+        wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
+        testdt <- t(as.data.frame(ftmat[x,]))
+        testgroup <- phenogroup[x]
+        rglm.model <- glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=10^(seq(-3, 0.5, 0.05)))
+        rglm.preds.type <- predict(rglm.model, testdt, type="class", s=lambda)
+        rglm.preds.res <- predict(rglm.model, testdt, type="response", s=lambda)
+        rglm.preds.coef <- predict(rglm.model, testdt, type="coefficient", s=lambda)
+        alltruegroup <- c(alltruegroup, testgroup)
+        allpredval <- c(allpredval, rglm.preds.res)
+        write.table(paste0("predict ", sidgroup[x], "\t", testgroup, " as ", rglm.preds.type, "\t", rglm.preds.res),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+        return(allpredval)
+    })
+    
+    glmperfm <- roc(response=phenogroup, predictor=loopreds, ci=TRUE)
+    pdf(outfig, width=8, height=8)
+    plot(glmperfm,print.auc=TRUE,print.auc.y=0.6,print.auc.x=0.3)
+    dev.off()
+    print(glmperfm$auc)
+    print(glmperfm$ci)
+    runacc <- table(dtnumgroup, ifelse(loopreds>0.5, "Case", "Ctrl"))
+    print(runacc)
 }
 
 
