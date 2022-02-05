@@ -60,11 +60,16 @@ FilterCountMatrixFeat <- function(sampleinfo, inputdir, indexfh, cntoption, outm
     return(ftmat)
 }
 
-AssessGLMLoo <- function(ftmat, alpha, lambda, outpred, outfig) {
+AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig) {
     alpha <- as.numeric(alpha)
     lambda <- as.numeric(lambda)
     glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",lambda)
     print(glmparam)
+    flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+    fidx <- flagidx[flagidx$FlagIndex==1,]
+    fidx <- fidx[order(fidx$Index),]
+    coefheader <- t(data.frame(c("Intercept",fidx$Index)))
+    write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     
     sidgroup <- row.names(ftmat)
     phenogroup <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
@@ -96,6 +101,12 @@ AssessGLMLoo <- function(ftmat, alpha, lambda, outpred, outfig) {
         alltruegroup <- c(alltruegroup, testgroup)
         allpredval <- c(allpredval, rglm.preds.res)
         write.table(paste0("predict ", sidgroup[x], "\t", testgroup, " as ", rglm.preds.type, "\t", rglm.preds.res),outpred,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+	coefdt <- data.frame(rglm.preds.coef@Dimnames[[1]][rglm.preds.coef@i + 1], rglm.preds.coef@x)
+	colnames(coefdt) <- c("Index", paste0("coef.",sidgroup[x]))
+	coefdt <- merge(fidx, coefdt, by=c("Index"), all=TRUE)
+	coefdt <- coefdt[order(coefdt$Index),]
+        loocoef <- matrix(coefdt[,c(paste0("coef.",sidgroup[x]))],nrow=1)
+	write.table(loocoef,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
         return(allpredval)
     })
     
@@ -111,8 +122,8 @@ AssessGLMLoo <- function(ftmat, alpha, lambda, outpred, outfig) {
 
 GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle) {
     folds <- createFolds(phenogroup, k=nfold)
-    predsmse <- c()
-    predsauc <- c()
+    predsmsel <- c()
+    predsaucl <- c()
 
     for (i in 1:nfold) {
         x <- folds[[i]]
@@ -132,11 +143,15 @@ GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle) {
         } else {
             popcoef <- merge(popcoef, coefdt, by=c("feature"),all=TRUE)
         }
-	preds <- assess.glmnet(cvfit, newx=testdt, newy=testgroup)$auc
-        predsauc <- c(predsauc, preds[1])
+	predsmse <- assess.glmnet(cvfit, newx=testdt, newy=testgroup)$mse
+	predsmsel <- c(predsmsel, predsmse[1])
+	predsauc <- assess.glmnet(cvfit, newx=testdt, newy=testgroup)$auc
+        predsaucl <- c(predsaucl, predsauc[1])
     }
-    print(predsauc)
-    print(summary(predsauc))
+    print(predsmsel)
+    print(summary(predsmsel))
+    print(predsaucl)
+    print(summary(predsaucl))
     return(popcoef)
 }
 
