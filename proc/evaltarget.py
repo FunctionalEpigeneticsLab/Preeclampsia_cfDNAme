@@ -28,7 +28,10 @@ def collectdiaginfo(invcf, outfh):
                     (chrom, tstart) = (lineinfo[0],int(lineinfo[1])-1)
                     tend = re.split('=|;',lineinfo[info_pos])[1]
                     for i in range(format_pos,len(lineinfo)):
-                        samFT = lineinfo[i].split(':')[0]
+                        #samFT = lineinfo[i].split(':')[0]
+                        #count the first feature
+                        samFT = re.split(':|;',lineinfo[i])[0]
+                        print(samFT)
                         if samFT == "BAD_MATE":
                             nbadmate += 1
                         elif samFT == "COVERAGE_GAPS":

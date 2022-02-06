@@ -120,6 +120,77 @@ AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, ou
     print(runacc)
 }
 
+FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig, selected.feat=NA) {
+    alpha <- as.numeric(alpha)
+    lambda <- as.numeric(lambda)
+    glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",lambda,"; using selected features: ",selected.feat)
+    print(glmparam)
+    
+    sidgroup <- row.names(ftmat)
+    phenogroup <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
+    phenogroup <- as.factor(phenogroup)
+
+    if (length(levels(phenogroup)) == 2) {
+        levels(phenogroup) <- list("Ctrl"=0, "Case"=1)
+    } else {
+        stop("number of group greater than 2")
+    }
+	
+    if (!is.na(selected.feat)) {
+	featidx <- fread(selected.feat, header=TRUE, sep="\t",data.table=FALSE)
+	fidx <- featidx[order(featidx$Index),]
+	sfeat <- fidx$Index
+	ftmat <- ftmat[,colnames(ftmat) %in% sfeat]
+	coefheader <- t(data.frame(c("Intercept",sfeat)))
+	write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
+    } else {
+        flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+	fidx <- flagidx[flagidx$FlagIndex==1,]
+	fidx <- fidx[order(fidx$Index),]
+	coefheader <- t(data.frame(c("Intercept",fidx$Index)))
+	write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
+    }
+    
+    n_train <- nrow(ftmat)
+    outheader <- paste(glmparam, "\nClassified samples:\n")
+    write.table(outheader,outpred,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+    alltruegroup <- c()
+    allpredgroup <- c()
+    allpredval <- c()
+
+    loopreds <- sapply(1:n_train, function(x) {
+        traindt <- ftmat[-x,]
+        traingroup <- phenogroup[-x]
+        wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
+        testdt <- t(as.data.frame(ftmat[x,]))
+        testgroup <- phenogroup[x]
+        rglm.model <- glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=10^(seq(-3, 0.5, 0.05)))
+        rglm.preds.type <- predict(rglm.model, testdt, type="class", s=lambda)
+        rglm.preds.res <- predict(rglm.model, testdt, type="response", s=lambda)
+        rglm.preds.coef <- predict(rglm.model, testdt, type="coefficient", s=lambda)
+        alltruegroup <- c(alltruegroup, testgroup)
+        allpredval <- c(allpredval, rglm.preds.res)
+        write.table(paste0("predict ", sidgroup[x], "\t", testgroup, " as ", rglm.preds.type, "\t", rglm.preds.res),outpred,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+	coefdt <- data.frame(rglm.preds.coef@Dimnames[[1]][rglm.preds.coef@i + 1], rglm.preds.coef@x)
+	colnames(coefdt) <- c("Index", paste0("coef.",sidgroup[x]))
+	coefdt <- merge(fidx, coefdt, by=c("Index"), all=TRUE)
+	coefdt <- coefdt[order(coefdt$Index),]
+        loocoef <- matrix(coefdt[,c(paste0("coef.",sidgroup[x]))],nrow=1)
+	write.table(loocoef,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
+        return(allpredval)
+    })
+    
+    glmperfm <- roc(response=phenogroup, predictor=loopreds, ci=TRUE)
+    pdf(outfig, width=8, height=8)
+    plot(glmperfm,print.auc=TRUE,print.auc.y=0.6,print.auc.x=0.3)
+    dev.off()
+    print(glmperfm$auc)
+    print(glmperfm$ci)
+    runacc <- table(phenogroup, ifelse(loopreds>0.5, "Case", "Ctrl"))
+    print(runacc)
+}
+
+
 GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle) {
     folds <- createFolds(phenogroup, k=nfold)
     predsmsel <- c()
