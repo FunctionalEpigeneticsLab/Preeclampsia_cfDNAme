@@ -68,7 +68,7 @@ AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, ou
     flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
     fidx <- flagidx[flagidx$FlagIndex==1,]
     fidx <- fidx[order(fidx$Index),]
-    coefheader <- t(data.frame(c("Intercept",fidx$Index)))
+    coefheader <- t(data.frame(fidx$Index))
     write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     
     sidgroup <- row.names(ftmat)
@@ -103,7 +103,7 @@ AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, ou
         write.table(paste0("predict ", sidgroup[x], "\t", testgroup, " as ", rglm.preds.type, "\t", rglm.preds.res),outpred,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
 	coefdt <- data.frame(rglm.preds.coef@Dimnames[[1]][rglm.preds.coef@i + 1], rglm.preds.coef@x)
 	colnames(coefdt) <- c("Index", paste0("coef.",sidgroup[x]))
-	coefdt <- merge(fidx, coefdt, by=c("Index"), all=TRUE)
+	coefdt <- merge(fidx, coefdt, by=c("Index"), all.x=TRUE)
 	coefdt <- coefdt[order(coefdt$Index),]
         loocoef <- matrix(coefdt[,c(paste0("coef.",sidgroup[x]))],nrow=1)
 	write.table(loocoef,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
@@ -118,6 +118,21 @@ AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, ou
     print(glmperfm$ci)
     runacc <- table(phenogroup, ifelse(loopreds>0.5, "Case", "Ctrl"))
     print(runacc)
+}
+
+CoefRegular <- function(coeffh, flagindexfh, outfeat) {
+    cfdt <- fread(coeffh, header=TRUE, sep="\t", data.table=FALSE)
+    cfdf <- data.frame(t(cfdt))
+    cfdf$Index <- row.names(cfdf)
+    flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+    dt <- merge(flagidx, cfdf, by=c("Index"),all.x=TRUE)
+
+    featthresh <- 0.5*dim(dt[,!(colnames(dt) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))])[2]
+    featindex <- dt[rowSums(is.na(dt[,!(colnames(dt) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))]))<=featthresh,]
+    featindex$coefmean <- apply(featindex[,!(colnames(featindex) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))], 1, mean, na.rm=TRUE)
+    featindex$coefsd <- apply(featindex[,!(colnames(featindex) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))], 1, sd, na.rm=TRUE)
+    outdf <- featindex[,c("Index","Chromosome","Start","End","Probe","FlagIndex","coefmean","coefsd")]
+    write.table(outdf, outfeat, row.names=FALSE, quote=FALSE, sep="\t")
 }
 
 FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig, selected.feat=NA) {
@@ -141,13 +156,13 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
 	fidx <- featidx[order(featidx$Index),]
 	sfeat <- fidx$Index
 	ftmat <- ftmat[,colnames(ftmat) %in% sfeat]
-	coefheader <- t(data.frame(c("Intercept",sfeat)))
+	coefheader <- t(data.frame(sfeat))
 	write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     } else {
         flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
 	fidx <- flagidx[flagidx$FlagIndex==1,]
 	fidx <- fidx[order(fidx$Index),]
-	coefheader <- t(data.frame(c("Intercept",fidx$Index)))
+	coefheader <- t(data.frame(fidx$Index))
 	write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     }
     
@@ -173,7 +188,8 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
         write.table(paste0("predict ", sidgroup[x], "\t", testgroup, " as ", rglm.preds.type, "\t", rglm.preds.res),outpred,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
 	coefdt <- data.frame(rglm.preds.coef@Dimnames[[1]][rglm.preds.coef@i + 1], rglm.preds.coef@x)
 	colnames(coefdt) <- c("Index", paste0("coef.",sidgroup[x]))
-	coefdt <- merge(fidx, coefdt, by=c("Index"), all=TRUE)
+	#merge to flagindex, discard intercept
+	coefdt <- merge(fidx, coefdt, by=c("Index"), all.x=TRUE)
 	coefdt <- coefdt[order(coefdt$Index),]
         loocoef <- matrix(coefdt[,c(paste0("coef.",sidgroup[x]))],nrow=1)
 	write.table(loocoef,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
