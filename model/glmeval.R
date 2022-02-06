@@ -94,7 +94,7 @@ AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, ou
         wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
         testdt <- t(as.data.frame(ftmat[x,]))
         testgroup <- phenogroup[x]
-        rglm.model <- glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=10^(seq(-3, 0.5, 0.05)))
+        rglm.model <- glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
         rglm.preds.type <- predict(rglm.model, testdt, type="class", s=lambda)
         rglm.preds.res <- predict(rglm.model, testdt, type="response", s=lambda)
         rglm.preds.coef <- predict(rglm.model, testdt, type="coefficient", s=lambda)
@@ -179,7 +179,7 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
         wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
         testdt <- t(as.data.frame(ftmat[x,]))
         testgroup <- phenogroup[x]
-        rglm.model <- glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=10^(seq(-3, 0.5, 0.05)))
+        rglm.model <- glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
         rglm.preds.type <- predict(rglm.model, testdt, type="class", s=lambda)
         rglm.preds.res <- predict(rglm.model, testdt, type="response", s=lambda)
         rglm.preds.coef <- predict(rglm.model, testdt, type="coefficient", s=lambda)
@@ -207,7 +207,7 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
 }
 
 
-GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle) {
+GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle, mseaucout) {
     folds <- createFolds(phenogroup, k=nfold)
     predsmsel <- c()
     predsaucl <- c()
@@ -220,7 +220,7 @@ GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle) {
         wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
         testdt <- ftmat[x,]
         testgroup <- phenogroup[x]
-        cvfit <- cv.glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=10^(seq(-3.5, 1.5, 0.05)))
+        cvfit <- cv.glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
         print(cvfit$lambda.min)
         autocoef <- coef(cvfit,s = "lambda.min")
         coefdt <- data.frame(autocoef@Dimnames[[1]][autocoef@i + 1], autocoef@x)
@@ -235,14 +235,16 @@ GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle) {
 	predsauc <- assess.glmnet(cvfit, newx=testdt, newy=testgroup)$auc
         predsaucl <- c(predsaucl, predsauc[1])
     }
-    print(predsmsel)
     print(summary(predsmsel))
-    print(predsaucl)
     print(summary(predsaucl))
+    predsmsedt <- t(data.frame(c(paste0("MSE_R",curcycle),predsmsel)))
+    write.table(predsmsedt,mseaucout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
+    predsaucdt <- t(data.frame(c(paste0("AUC_R",curcycle),predsaucl)))
+    write.table(predsaucdt,mseaucout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     return(popcoef)
 }
 
-RunGLMcoefReplicates <- function(ftmat, alpha, nfold, numrep, coefout, coefsumout) {
+RunGLMcoefReplicates <- function(ftmat, alpha, nfold, numrep, coefout, coefsumout, mseaucout) {
     nfold <- as.numeric(nfold)
     numrep <- as.numeric(numrep)
     
@@ -265,7 +267,7 @@ RunGLMcoefReplicates <- function(ftmat, alpha, nfold, numrep, coefout, coefsumou
         #set.seed(j)
         pfline <- paste("Replicate ",j)
         print(pfline)
-	popcoef <- GLMvariableCV(ftmat, phenogroup, alpha, nfold, curcycle=j)
+	popcoef <- GLMvariableCV(ftmat, phenogroup, alpha, nfold, curcycle=j, mseaucout)
         if (j == 1) {
             repcoef <- popcoef
         } else {
