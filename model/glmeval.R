@@ -110,7 +110,7 @@ AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, ou
         return(allpredval)
     })
     
-    glmperfm <- roc(response=phenogroup, predictor=loopreds, ci=TRUE)
+    glmperfm <- roc(response=phenogroup, predictor=loopreds, ci=TRUE, levels=c("Ctrl","Case"), direction="<")
     pdf(outfig, width=8, height=8)
     plot(glmperfm,print.auc=TRUE,print.auc.y=0.6,print.auc.x=0.3)
     dev.off()
@@ -196,7 +196,7 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
         return(allpredval)
     })
     
-    glmperfm <- roc(response=phenogroup, predictor=loopreds, ci=TRUE)
+    glmperfm <- roc(response=phenogroup, predictor=loopreds, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
     pdf(outfig, width=8, height=8)
     plot(glmperfm,print.auc=TRUE,print.auc.y=0.6,print.auc.x=0.3)
     dev.off()
@@ -211,6 +211,7 @@ GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle, mseaucout) 
     folds <- createFolds(phenogroup, k=nfold)
     predsmsel <- c()
     predsaucl <- c()
+    predsdevl <- c()
 
     for (i in 1:nfold) {
         x <- folds[[i]]
@@ -230,13 +231,18 @@ GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle, mseaucout) 
         } else {
             popcoef <- merge(popcoef, coefdt, by=c("feature"),all=TRUE)
         }
+	predsdev <- assess.glmnet(cvfit, newx=testdt, newy=testgroup)$deviance
+	predsdevl <- c(predsdevl, predsdev[1])
 	predsmse <- assess.glmnet(cvfit, newx=testdt, newy=testgroup)$mse
 	predsmsel <- c(predsmsel, predsmse[1])
 	predsauc <- assess.glmnet(cvfit, newx=testdt, newy=testgroup)$auc
         predsaucl <- c(predsaucl, predsauc[1])
     }
+    print(summary(predsdevl))
     print(summary(predsmsel))
     print(summary(predsaucl))
+    predsdevdt <- t(data.frame(c(paste0("DEV_R",curcycle),predsdevl)))
+    write.table(predsdevdt,mseaucout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     predsmsedt <- t(data.frame(c(paste0("MSE_R",curcycle),predsmsel)))
     write.table(predsmsedt,mseaucout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     predsaucdt <- t(data.frame(c(paste0("AUC_R",curcycle),predsaucl)))
