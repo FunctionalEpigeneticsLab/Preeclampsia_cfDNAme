@@ -324,8 +324,8 @@ FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, cu
     }
 
     glmperfm <- roc(response=alltruegroup, predictor=allpredgroup, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
-    repauc <- glmperfm$auc
-    repci <- glmperfm$ci
+    repauc <- paste0("AUC: ", glmperfm$auc)   
+    repci <- paste("CI: ", glmperfm$ci)
     write.table(repauc,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
     write.table(repci,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
     if (curcycle==1) {
