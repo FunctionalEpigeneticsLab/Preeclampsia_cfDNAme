@@ -289,6 +289,114 @@ RunGLMcoefReplicates <- function(ftmat, alpha, nfold, numrep, coefout, coefsumou
     write.table(outdf,coefsumout,row.names=FALSE,quote=FALSE,sep="\t")
 }
 
+FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle, predresout) {
+    folds <- createFolds(phenogroup, k=nfold)
+    alltruegroup <- phenogroup[unlist(folds)]
+    allpredgroup <- c()
+    predres <- data.frame()
+
+
+    for (i in 1:nfold) {
+        x <- folds[[i]]
+        print(paste("Fold ",i))
+        traindt <- ftmat[-x,]
+        traingroup <- phenogroup[-x]
+        wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
+        testdt <- ftmat[x,]
+        testgroup <- phenogroup[x]
+	cvmodel <- glmnet(traindt, traingroup, family="binomial", weights=wts, alpha=alpha, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
+
+        cv.preds.type <- predict(cvmodel, testdt, type="class", s=mylambda)
+        cv.preds.res <- predict(cvmodel, testdt, type="response", s=mylambda)
+        cv.preds.coef <- predict(cvmodel, testdt, type="coefficient", s=mylambda)
+
+	coefdt <- data.frame(cv.preds.coef@Dimnames[[1]][cv.preds.coef@i + 1], cv.preds.coef@x)
+	colnames(coefdt) <- c("feature", paste0("I",i,"R",curcycle))
+	if (i == 1) {
+            popcoef <- coefdt
+			
+        } else {
+            popcoef <- merge(popcoef, coefdt, by=c("feature"),all=TRUE)
+        }
+	allpredgroup <- c(allpredgroup, cv.preds.res)
+	predres <- cbind(sidgroup[x], cv.preds.type, cv.preds.res)
+	write.table(predres,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
+    }
+
+    glmperfm <- roc(response=alltruegroup, predictor=allpredgroup, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
+    repauc <- glmperfm$auc
+    repci <- glmperfm$ci
+    write.table(repauc,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
+    write.table(repci,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
+    if (curcycle==1) {
+        plot(glmperfm,print.auc=TRUE,print.auc.y=0.6-0.05*(curcycle-1),print.auc.x=0.3)
+    } else {
+        plot(glmperfm,add=TRUE,print.auc=TRUE,print.auc.y=0.6-0.05*(curcycle-1),print.auc.x=0.3)
+    }
+    return(popcoef)
+}
+
+RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, perfoutfig, selected.feat=NA) {
+    nfold <- as.numeric(nfold)
+    numrep <- as.numeric(numrep)
+    
+    alpha <- as.numeric(alpha)
+    mylambda <- as.numeric(mylambda)
+    glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",mylambda,"; using selected features: ",selected.feat)
+    print(glmparam)
+    write.table(glmparam,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+
+    sidgroup <- row.names(ftmat)
+    phenogroup <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
+    phenogroup <- as.factor(phenogroup)
+	
+    if (length(levels(phenogroup)) == 2) {
+        levels(phenogroup) <- list("Ctrl"=0, "Case"=1)
+    } else {
+        stop("number of group greater than 2")
+    }
+	
+    if (!is.na(selected.feat)) {
+	featidx <- fread(selected.feat, header=TRUE, sep="\t",data.table=FALSE)
+	fidx <- featidx[order(featidx$Index),]
+	sfeat <- fidx$Index
+	ftmat <- ftmat[,colnames(ftmat) %in% sfeat]
+	coefheader <- t(data.frame(sfeat))
+	write.table(coefheader,coefout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
+    } else {
+        flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+	fidx <- flagidx[flagidx$FlagIndex==1,]
+	fidx <- fidx[order(fidx$Index),]
+	coefheader <- t(data.frame(fidx$Index))
+	write.table(coefheader,coefout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
+    }
+	
+    repcoef <- data.frame()
+    pdf(perfoutfig,width=9,height=9)
+    for (j in 1:numrep) {
+        #set.seed(j)
+        pfline <- paste("Replicate ",j)
+        print(pfline)
+	predresheader <- paste("CV Rep",j)
+	write.table(predresheader,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+	popcoef <- FeatureGLMCV(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle=j, predresout)
+
+        if (j == 1) {
+            repcoef <- popcoef
+        } else {
+            repcoef <- merge(repcoef, popcoef, by=c("feature"),all=TRUE)
+        }
+    }
+    dev.off()
+    write.table(repcoef,coefout,row.names=FALSE,quote=FALSE,sep="\t")
+    freqthresh <- 0.75*(nfold*numrep)
+    freqindex <- repcoef[rowSums(is.na(repcoef[,-1]))<=freqthresh,]
+    freqindex$coefmean <- apply(freqindex[,-1], 1, mean, na.rm=TRUE)
+    freqindex$coefsd <- apply(freqindex[,-1], 1, sd, na.rm=TRUE)
+    outdf <- freqindex[,c("feature","coefmean","coefsd")]
+    write.table(outdf,coefsumout,row.names=FALSE,quote=FALSE,sep="\t")
+}
+
 
 #############for input from seqmonk
 CombineForwardReverseMatrix <- function(frlist, indexfh, outfh) {
