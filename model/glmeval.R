@@ -398,6 +398,69 @@ RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, num
 }
 
 
+GenerateGLMmodel <- function(ftmat, flagindex, alpha, selected.feat=NA, modeldir, modelname) {
+    alpha <- as.numeric(alpha)
+    glmparam <- paste("Generating GLM model - alpha: ",alpha,"; using selected features: ",selected.feat)
+    print(glmparam)
+    
+    sidgroup <- row.names(ftmat)
+    phenogroup <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
+    phenogroup <- as.factor(phenogroup)
+
+    if (length(levels(phenogroup)) == 2) {
+        levels(phenogroup) <- list("Ctrl"=0, "Case"=1)
+    } else {
+        stop("number of group greater than 2")
+    }
+
+    if (!is.na(selected.feat)) {
+        featidx <- fread(selected.feat, header=TRUE, sep="\t",data.table=FALSE)
+	fidx <- featidx[order(featidx$Index),]
+	sfeat <- fidx$Index
+        ftmat <- ftmat[,colnames(ftmat) %in% sfeat]
+    } else {
+        flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+        fidx <- flagidx[flagidx$FlagIndex==1,]
+        fidx <- fidx[order(fidx$Index),]
+    }
+    
+    wts <- as.vector(1/(table(phenogroup)[phenogroup]/length(phenogroup)))
+    finalrgml <- glmnet(ftmat, phenogroup, family="binomial", weights=wts, alpha=alpha, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
+    print("writing GLM model")
+    savedmodel <- paste0(modeldir, "/", modelname, ".rds")
+    saveRDS(finalrgml, savedmodel)
+}
+
+ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh) {
+    mylambda <- as.numeric(mylambda)
+    sidgroup <- row.names(predmat)
+    annoid <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
+    annogroup <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
+
+    if (!is.na(selected.feat)) {
+        featidx <- fread(selected.feat, header=TRUE, sep="\t",data.table=FALSE)
+        fidx <- featidx[order(featidx$Index),]
+        sfeat <- fidx$Index
+        predmat <- predmat[,colnames(predmat) %in% sfeat]
+    } else {
+        flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+        fidx <- flagidx[flagidx$FlagIndex==1,]
+        fidx <- fidx[order(fidx$Index),]
+    }
+    
+    write.table(paste0("Using ", modeldir, "/", modelname, ".rds\n"),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE)
+    usemodel <- readRDS(paste0(modeldir, "/", modelname, ".rds"))
+    nsam <- nrow(predmat)
+    predlist <- lapply(1:nsam, function(x) {
+        predsample <- predmat[x,,drop=FALSE]
+        rglm.pred.type <- predict(usemodel, predsample, type="class", s=mylambda)
+	rglm.pred.res <- predict(usemodel, predsample, type="response", s=mylambda)
+        write.table(paste("predict", sidgroup[x], "as", rglm.pred.type, "-", rglm.pred.res),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+        return(rglm.pred.type)
+    })
+}
+
+
 #############for input from seqmonk
 CombineForwardReverseMatrix <- function(frlist, indexfh, outfh) {
     
