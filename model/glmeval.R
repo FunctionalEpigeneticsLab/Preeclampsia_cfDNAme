@@ -120,14 +120,15 @@ AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, ou
     print(runacc)
 }
 
-CoefRegular <- function(coeffh, flagindexfh, outfeat) {
+CoefRegular <- function(coeffh, flagindexfh, freqthresh, outfeat) {
+    freqthresh <- as.numeric(freqthresh)
     cfdt <- fread(coeffh, header=TRUE, sep="\t", data.table=FALSE)
     cfdf <- data.frame(t(cfdt))
     cfdf$Index <- row.names(cfdf)
     flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
     dt <- merge(flagidx, cfdf, by=c("Index"),all.x=TRUE)
 
-    featthresh <- 0.5*dim(dt[,!(colnames(dt) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))])[2]
+    featthresh <- (1-freqthresh)*dim(dt[,!(colnames(dt) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))])[2]
     featindex <- dt[rowSums(is.na(dt[,!(colnames(dt) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))]))<=featthresh,]
     featindex$coefmean <- apply(featindex[,!(colnames(featindex) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))], 1, mean, na.rm=TRUE)
     featindex$coefsd <- apply(featindex[,!(colnames(featindex) %in% c("Index","Chromosome","Start","End","Probe","FlagIndex"))], 1, sd, na.rm=TRUE)
@@ -431,7 +432,7 @@ GenerateGLMmodel <- function(ftmat, flagindex, alpha, selected.feat=NA, modeldir
     saveRDS(finalrgml, savedmodel)
 }
 
-ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh) {
+ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh, outcoef) {
     mylambda <- as.numeric(mylambda)
     sidgroup <- row.names(predmat)
     annoid <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
@@ -455,6 +456,14 @@ ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelna
         predsample <- predmat[x,,drop=FALSE]
         rglm.pred.type <- predict(usemodel, predsample, type="class", s=mylambda)
 	rglm.pred.res <- predict(usemodel, predsample, type="response", s=mylambda)
+	rglm.pred.coef <- predict(usemodel, predsample, type="coefficient", s=mylambda)
+	coefdt <- data.frame(rglm.pred.coef@Dimnames[[1]][rglm.pred.coef@i + 1], rglm.pred.coef@x)
+        colnames(coefdt) <- c("Index", paste0("coef.",sidgroup[x]))
+        #merge to flagindex, discard intercept
+        coefdt <- merge(fidx, coefdt, by=c("Index"), all.x=TRUE)
+        coefdt <- coefdt[order(coefdt$Index),]
+        loocoef <- matrix(coefdt[,c(paste0("coef.",sidgroup[x]))],nrow=1)
+	write.table(loocoef,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
         write.table(paste("predict", sidgroup[x], "as", rglm.pred.type, "-", rglm.pred.res),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
         return(rglm.pred.type)
     })
