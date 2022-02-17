@@ -51,6 +51,16 @@ GetCountMatrix <- function(sampleinfo, inputdir, indexfh, cntoption="mval", outm
     return(inmat)
 }
 
+FlagHighVarianceCtrl <- function(sampleinfo, inputdir, indexfh, cntoption,outmat) {
+    ftmat <- GetCountMatrix(sampleinfo, inputdir, indexfh, cntoption, outmat)
+    ctrlftmat <- ftmat[sapply(strsplit(row.names(ftmat), split=':', fixed=TRUE), function(x) (x[2]))=="Ctrl",]
+    ctrlftvar <- apply(ctrlftmat, 2, var)
+    lowvarindex <- colnames(ctrlftmat[,ctrlftvar < quantile(ctrlftvar, 0.75)])
+    #elimftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
+    #return(elimftmat)
+    return(lowvarindex)
+}
+
 FilterCountMatrixFeat <- function(sampleinfo, inputdir, indexfh, cntoption, outmat, flagindexfh) {
     inmat <- GetCountMatrix(sampleinfo, inputdir, indexfh, cntoption, outmat)
     flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
