@@ -11,15 +11,15 @@ LoadProbeIndex <- function(indexfh) {
     return(idx)
 }
 
-GetCountMatrix <- function(sampleinfo, inputdir, indexfh, cntoption="mval", outmat) {
+GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", normalization=NA, outmat) {
     #' @title Read multiple samples into a data matrix
     #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag'
     #' @param inputdir A directory path to methylation count of all samples
-    #' @param indexfh A tab-separated file contains capture information 'CHROM\tSTART\tEND\tINDEX\tPROBE'
+    #' @param flagindexfh A tab-separated file contains capture information 'Chromosome\tStart\tEnd\tIndex\tProbe\tFlagIndex'
     #' @param outmat An output file for combined matrix
     
     saminfo <- fread(sampleinfo, header=TRUE, sep="\t", colClasses=c("character","character","character","numeric","character","numeric","numeric","character"), data.table=FALSE)
-    idx <- LoadProbeIndex(indexfh)
+    flagidx <- LoadProbeIndex(flagindexfh)
     #datalist <- lapply()
     inmat <- matrix()
     
@@ -28,9 +28,9 @@ GetCountMatrix <- function(sampleinfo, inputdir, indexfh, cntoption="mval", outm
 	samfile <- paste0(saminfo[i,"SubjectID"], ".mavg.count.merge.tsv")
 	samfh <- file.path(inputdir, samfile)
 	curfh <- fread(samfh, header=TRUE, sep="\t", data.table=FALSE)
-	curfh <- merge(idx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
+	curfh <- merge(flagidx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
 	curfh <- curfh[order(curfh$Index),]
-	
+		
 	if (cntoption == "mval") {
 	    curfh$calval <- log2((curfh$Methylated+1)/(curfh$Unmethylated+1))
 	} else if (cntoption == "betaval") {
@@ -38,21 +38,29 @@ GetCountMatrix <- function(sampleinfo, inputdir, indexfh, cntoption="mval", outm
 	} else {
 	    print("specify value to be calculated")
 	}
-
+		
+	if (normalization=="meannorm") {
+	    curfh$calval <- curfh$calval/(mean(curfh$calval))
+	} else if (normalization=="mediannorm") {
+	    curfh$calval <- curfh$calval/(median(curfh$calval))
+	} else (normalization=="ffnorm") {
+	    #normalize on fetal fraction
+	    #consider to to
+	}
+		
 	if (i == 1) {
 	    inmat <- matrix(curfh$calval,nrow=1)
 	} else {
 	    inmat <- rbind(inmat, matrix(curfh$calval,nrow=1))
 	}
     }
-    colnames(inmat) <- idx$Index
+    colnames(inmat) <- flagidx$Index
     rownames(inmat) <- paste0(saminfo$SubjectID,":",saminfo$Phenotype)
     write.table(inmat,outmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
     return(inmat)
 }
 
-FlagHighVarianceCtrl <- function(sampleinfo, inputdir, indexfh, cntoption,outmat) {
-    ftmat <- GetCountMatrix(sampleinfo, inputdir, indexfh, cntoption, outmat)
+FlagHighVarianceCtrl <- function(ftmat) {
     ctrlftmat <- ftmat[sapply(strsplit(row.names(ftmat), split=':', fixed=TRUE), function(x) (x[2]))=="Ctrl",]
     ctrlftvar <- apply(ctrlftmat, 2, var)
     lowvarindex <- colnames(ctrlftmat[,ctrlftvar < quantile(ctrlftvar, 0.75)])
@@ -61,11 +69,15 @@ FlagHighVarianceCtrl <- function(sampleinfo, inputdir, indexfh, cntoption,outmat
     return(lowvarindex)
 }
 
-FilterCountMatrixFeat <- function(sampleinfo, inputdir, indexfh, cntoption, outmat, flagindexfh) {
-    inmat <- GetCountMatrix(sampleinfo, inputdir, indexfh, cntoption, outmat)
-    flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
+FilterCountMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat, lowvarfilter=FALSE) {
+    flagidx <- LoadProbeIndex(indexfh)
+    inmat <- GetCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat)
     keepindex <- flagidx$Index[flagidx$FlagIndex==1]
     ftmat <- inmat[,colnames(inmat) %in% keepindex]
+    if (lowvarfilter) {
+	lowvarindex <- FlagHighVarianceCtrl(ftmat)
+	ftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
+    } 
     print(paste0("Keep ", dim(ftmat)[2], " targets for ", dim(ftmat)[1], " subjects"))
     return(ftmat)
 }
@@ -442,7 +454,7 @@ GenerateGLMmodel <- function(ftmat, flagindex, alpha, selected.feat=NA, modeldir
     saveRDS(finalrgml, savedmodel)
 }
 
-ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh, outcoef) {
+ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh, outcoef, outfig) {
     mylambda <- as.numeric(mylambda)
     sidgroup <- row.names(predmat)
     annoid <- sapply(strsplit(sidgroup, split=':', fixed=TRUE), function(x) (x[2]))
@@ -462,7 +474,7 @@ ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelna
     write.table(paste0("Using ", modeldir, "/", modelname, ".rds\n"),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE)
     usemodel <- readRDS(paste0(modeldir, "/", modelname, ".rds"))
     nsam <- nrow(predmat)
-    predlist <- lapply(1:nsam, function(x) {
+    predlist <- sapply(1:nsam, function(x) {
         predsample <- predmat[x,,drop=FALSE]
         rglm.pred.type <- predict(usemodel, predsample, type="class", s=mylambda)
 	rglm.pred.res <- predict(usemodel, predsample, type="response", s=mylambda)
@@ -475,8 +487,17 @@ ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelna
         loocoef <- matrix(coefdt[,c(paste0("coef.",sidgroup[x]))],nrow=1)
 	write.table(loocoef,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
         write.table(paste("predict", sidgroup[x], "as", rglm.pred.type, "-", rglm.pred.res),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
-        return(rglm.pred.type)
+        return(rglm.pred.res)
     })
+    glmperfm <- roc(response=annogroup, predictor=predlist, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
+    pdf(outfig, width=8, height=8)
+    plot(glmperfm,col="#b2182b",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.5,ci=TRUE,lwd=4)
+    legend("bottomright", legend=c("Validation"),col=c("#b2182b"), lwd=2)
+    dev.off()
+    print(glmperfm$auc)
+    print(glmperfm$ci)
+    runacc <- table(annogroup, ifelse(predlist>0.5, "Case", "Ctrl"))
+    print(runacc)
 }
 
 
