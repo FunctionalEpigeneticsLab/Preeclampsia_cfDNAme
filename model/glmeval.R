@@ -82,7 +82,7 @@ FilterCountMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, 
     return(ftmat)
 }
 
-AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig) {
+obsolete_AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig) {
     alpha <- as.numeric(alpha)
     lambda <- as.numeric(lambda)
     glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",lambda)
@@ -225,6 +225,17 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
     dev.off()
     print(glmperfm$auc)
     print(glmperfm$ci)
+    youdenbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="youden")
+    topleftbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="closest.topleft")
+    print(paste0("Youden best cutoff: ", youdenbest))
+    print(paste0("Topleft best cutoff: ", topleftbest))
+    ssupper <- 1.0
+    sslower <- 0.55
+    spupper <- 1.0
+    splower <- 0.65
+    glmcoords <- coords(roc=glmperfm, x = "all", transpose = FALSE)
+    coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= supper),]
+    print(coordacc)
     runacc <- table(phenogroup, ifelse(loopreds>0.5, "Case", "Ctrl"))
     print(runacc)
 }
@@ -349,6 +360,11 @@ FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, cu
     glmperfm <- roc(response=alltruegroup, predictor=allpredgroup, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
     repauc <- paste0("AUC: ", glmperfm$auc)   
     repci <- paste("CI: ", glmperfm$ci)
+    youdenbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="youden")
+    topleftbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="closest.topleft")
+    print(paste0("Youden best cutoff: ", youdenbest))
+    print(paste0("Topleft best cutoff: ", topleftbest))
+    
     write.table(repauc,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
     write.table(repci,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
     if (curcycle==1) {
@@ -420,10 +436,9 @@ RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, num
     write.table(outdf,coefsumout,row.names=FALSE,quote=FALSE,sep="\t")
 }
 
-
 GenerateGLMmodel <- function(ftmat, flagindex, alpha, selected.feat=NA, modeldir, modelname) {
     alpha <- as.numeric(alpha)
-    glmparam <- paste("Generating GLM model - alpha: ",alpha,"; using selected features: ",selected.feat)
+    glmparam <- paste("Generating GLM model - alpha: ",alpha,"; using specified features: ",selected.feat)
     print(glmparam)
     
     sidgroup <- row.names(ftmat)
@@ -465,10 +480,14 @@ ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelna
         fidx <- featidx[order(featidx$Index),]
         sfeat <- fidx$Index
         predmat <- predmat[,colnames(predmat) %in% sfeat]
+	coefheader <- t(data.frame(sfeat))
+	write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     } else {
         flagidx <- fread(flagindexfh, header=TRUE, sep="\t", data.table=FALSE)
         fidx <- flagidx[flagidx$FlagIndex==1,]
         fidx <- fidx[order(fidx$Index),]
+	coefheader <- t(data.frame(fidx$Index))
+	write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     }
     
     write.table(paste0("Using ", modeldir, "/", modelname, ".rds\n"),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE)
@@ -496,9 +515,19 @@ ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelna
     dev.off()
     print(glmperfm$auc)
     print(glmperfm$ci)
-    runacc <- table(annogroup, ifelse(predlist>0.5, "Case", "Ctrl"))
-    print(runacc)
+    youdenbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="youden")
+    topleftbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="closest.topleft")
+    print(paste0("Youden best cutoff: ", youdenbest))
+    print(paste0("Topleft best cutoff: ", topleftbest))
+    ssupper <- 1.0
+    sslower <- 0.55
+    spupper <- 1.0
+    splower <- 0.65
+    glmcoords <- coords(roc=glmperfm, x = "all", transpose = FALSE)
+    coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= supper),]
+    print(coordacc)
 }
+
 
 
 #############for input from seqmonk
