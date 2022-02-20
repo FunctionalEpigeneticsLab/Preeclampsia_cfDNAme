@@ -13,12 +13,12 @@ LoadProbeIndex <- function(indexfh) {
 
 GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", normalization=NA, outmat) {
     #' @title Read multiple samples into a data matrix
-    #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag'
+    #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag\tCenter\tSeqBatch\n'
     #' @param inputdir A directory path to methylation count of all samples
     #' @param flagindexfh A tab-separated file contains capture information 'Chromosome\tStart\tEnd\tIndex\tProbe\tFlagIndex'
     #' @param outmat An output file for combined matrix
     
-    saminfo <- fread(sampleinfo, header=TRUE, sep="\t", colClasses=c("character","character","character","numeric","character","numeric","numeric","character"), data.table=FALSE)
+    saminfo <- fread(sampleinfo, header=TRUE, sep="\t", colClasses=c("character","character","character","numeric","character","numeric","numeric","character","character","character"), data.table=FALSE)
     flagidx <- LoadProbeIndex(flagindexfh)
     #datalist <- lapply()
     inmat <- matrix()
@@ -40,12 +40,15 @@ GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", 
 	}
 		
 	if (normalization=="meannorm") {
+	    print("Normalize the sample methylation count by MEAN")
 	    curfh$calval <- curfh$calval/(mean(curfh$calval))
 	} else if (normalization=="mediannorm") {
+	    print("Normalize the sample methylation count by MEDIAN")
 	    curfh$calval <- curfh$calval/(median(curfh$calval))
-	} else (normalization=="ffnorm") {
+	} else if (normalization=="ffnorm") {
 	    #normalize on fetal fraction
 	    #consider to to
+	    print("to be implemented")
 	}
 		
 	if (i == 1) {
@@ -62,6 +65,7 @@ GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", 
 
 FlagHighVarianceCtrl <- function(ftmat) {
     ctrlftmat <- ftmat[sapply(strsplit(row.names(ftmat), split=':', fixed=TRUE), function(x) (x[2]))=="Ctrl",]
+    print(paste0("Control samples identified: ", dim(ctrlftmat)[1]))
     ctrlftvar <- apply(ctrlftmat, 2, var)
     lowvarindex <- colnames(ctrlftmat[,ctrlftvar < quantile(ctrlftvar, 0.75)])
     #elimftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
@@ -70,16 +74,27 @@ FlagHighVarianceCtrl <- function(ftmat) {
 }
 
 FilterCountMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat, lowvarfilter=FALSE) {
-    flagidx <- LoadProbeIndex(indexfh)
+    flagidx <- LoadProbeIndex(flagindexfh)
     inmat <- GetCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat)
     keepindex <- flagidx$Index[flagidx$FlagIndex==1]
     ftmat <- inmat[,colnames(inmat) %in% keepindex]
     if (lowvarfilter) {
-	lowvarindex <- FlagHighVarianceCtrl(ftmat)
-	ftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
+        print("Discard high varaince features identified in controls")
+        lowvarindex <- FlagHighVarianceCtrl(ftmat)
+        ftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
     } 
-    print(paste0("Keep ", dim(ftmat)[2], " targets for ", dim(ftmat)[1], " subjects"))
+    print(paste0("Keep ", dim(ftmat)[2], " features for ", dim(ftmat)[1], " subjects"))
     return(ftmat)
+}
+
+FilterPredCountMatrixFeat <- function(trainftmat, predsampleinfo, inputdir, flagindexfh, cntoption, normalization, predoutmat, lowvarfilter) {
+    flagidx <- LoadProbeIndex(flagindexfh)
+    traindex <- colnames(trainftmat)
+    predmat <- GetCountMatrix(predsampleinfo, inputdir, flagindexfh, cntoption, normalization, predoutmat)
+    predftmat <- predmat[,colnames(predmat) %in% traindex]
+    print(paste0("*********Apply final model on ",dim(predftmat)[1], " subjects*********"))
+    print(paste0("Keep ", dim(predftmat)[2]," features that were used in training input for prediction"))
+    return(predftmat)
 }
 
 obsolete_AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig) {
@@ -234,7 +249,7 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
     spupper <- 1.0
     splower <- 0.65
     glmcoords <- coords(roc=glmperfm, x = "all", transpose = FALSE)
-    coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= supper),]
+    coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= ssupper),]
     print(coordacc)
     runacc <- table(phenogroup, ifelse(loopreds>0.5, "Case", "Ctrl"))
     print(runacc)
@@ -489,7 +504,7 @@ ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelna
 	coefheader <- t(data.frame(fidx$Index))
 	write.table(coefheader,outcoef,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
     }
-    
+    print(paste0("Classifying ",dim(predmat)[1]," subjects using ", modelname, ".rds"))
     write.table(paste0("Using ", modeldir, "/", modelname, ".rds\n"),outfh,row.names=FALSE,col.names=FALSE,quote=FALSE)
     usemodel <- readRDS(paste0(modeldir, "/", modelname, ".rds"))
     nsam <- nrow(predmat)
@@ -524,7 +539,7 @@ ApplyGLMmodel <- function(predmat, selected.feat=NA, mylambda, modeldir, modelna
     spupper <- 1.0
     splower <- 0.65
     glmcoords <- coords(roc=glmperfm, x = "all", transpose = FALSE)
-    coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= supper),]
+    coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= ssupper),]
     print(coordacc)
 }
 
