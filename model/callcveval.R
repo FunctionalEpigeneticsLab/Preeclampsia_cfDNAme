@@ -1,3 +1,5 @@
+script.dir <- "/data/leuven/323/vsc32370/script/cfDNA-methylation-processing-and-AUC/model"
+glmeval <- file.path(script.dir,"glmeval.R")
 source(glmeval)
 
 #set.seed(2022)
@@ -15,10 +17,11 @@ numrep <- args[10]
 coefout <- args[11]
 coefsumout <- args[12]
 predresout <- args[13]
-perfoutfig <- args[14]
-selected.feat <- args[15]
+devmseout <- args[14]
+perfoutfig <- args[15]
+selected.feat <- args[16]
 
 cntoption = "mval"
 
 ftmat = FilterCountMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat, lowvarfilter)
-RunGLMAssessReplicates(ftmat, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, perfoutfig, selected.feat=NA)
+RunGLMAssessReplicates(ftmat, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA)
