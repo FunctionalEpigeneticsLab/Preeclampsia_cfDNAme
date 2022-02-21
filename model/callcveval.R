@@ -16,6 +16,7 @@ coefout <- args[11]
 coefsumout <- args[12]
 predresout <- args[13]
 perfoutfig <- args[14]
+selected.feat <- args[15]
 
 cntoption = "mval"
 

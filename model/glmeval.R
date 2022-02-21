@@ -13,12 +13,12 @@ LoadProbeIndex <- function(indexfh) {
 
 GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", normalization=NA, outmat) {
     #' @title Read multiple samples into a data matrix
-    #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag\tCenter\tSeqBatch\n'
+    #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag\tCenter\tSeqBatch\tYear\n'
     #' @param inputdir A directory path to methylation count of all samples
     #' @param flagindexfh A tab-separated file contains capture information 'Chromosome\tStart\tEnd\tIndex\tProbe\tFlagIndex'
     #' @param outmat An output file for combined matrix
     
-    saminfo <- fread(sampleinfo, header=TRUE, sep="\t", colClasses=c("character","character","character","numeric","character","numeric","numeric","character","character","character"), data.table=FALSE)
+    saminfo <- fread(sampleinfo, header=TRUE, sep="\t", colClasses=c("character","character","character","numeric","character","numeric","numeric","character","character","character","numeric"), data.table=FALSE)
     flagidx <- LoadProbeIndex(flagindexfh)
     #datalist <- lapply()
     inmat <- matrix()
@@ -40,11 +40,13 @@ GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", 
 	}
 		
 	if (normalization=="meannorm") {
-	    print("Normalize the sample methylation count by MEAN")
-	    curfh$calval <- curfh$calval/(mean(curfh$calval))
+	    normfactor <- abs(mean(curfh$calval))
+            print(paste0("Normalize the sample methylation count by absMEAN ", normfactor))
+	    curfh$calval <- curfh$calval/normfactor
 	} else if (normalization=="mediannorm") {
-	    print("Normalize the sample methylation count by MEDIAN")
-	    curfh$calval <- curfh$calval/(median(curfh$calval))
+	    normfactor <- abs(median(curfh$calval))
+	    print(paste0("Normalize the sample methylation count by absMEDIAN ", normfactor))
+	    curfh$calval <- curfh$calval/normfactor
 	} else if (normalization=="ffnorm") {
 	    #normalize on fetal fraction
 	    #consider to to
@@ -256,7 +258,7 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
 }
 
 
-GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle, mseaucout) {
+obsolete_GLMvariableCV <- function(ftmat, phenogroup, alpha, nfold, curcycle, mseaucout) {
     folds <- createFolds(phenogroup, k=nfold)
     predsmsel <- c()
     predsaucl <- c()
@@ -338,12 +340,13 @@ RunGLMcoefReplicates <- function(ftmat, alpha, nfold, numrep, coefout, coefsumou
     write.table(outdf,coefsumout,row.names=FALSE,quote=FALSE,sep="\t")
 }
 
-FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle, predresout) {
+FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle, predresout, devmseout) {
     folds <- createFolds(phenogroup, k=nfold)
+    predsmsel <- c()
+    predsdevl <- c()
     alltruegroup <- phenogroup[unlist(folds)]
     allpredgroup <- c()
     predres <- data.frame()
-
 
     for (i in 1:nfold) {
         x <- folds[[i]]
@@ -354,6 +357,10 @@ FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, cu
         testdt <- ftmat[x,]
         testgroup <- phenogroup[x]
 	cvmodel <- glmnet(traindt, traingroup, family="binomial", weights=wts, alpha=alpha, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
+	predsdev <- assess.glmnet(cvmodel, newx=testdt, newy=testgroup, family="binomial", s=mylambda)$deviance
+	predsdevl <- c(predsdevl, predsdev[1])
+	predsmse <- assess.glmnet(cvmodel, newx=testdt, newy=testgroup, family="binomail", s=mylambda)$mse
+	predsmsel <- c(predsmsel, predsmse[1])
 
         cv.preds.type <- predict(cvmodel, testdt, type="class", s=mylambda)
         cv.preds.res <- predict(cvmodel, testdt, type="response", s=mylambda)
@@ -371,6 +378,10 @@ FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, cu
 	predres <- cbind(sidgroup[x], cv.preds.type, cv.preds.res)
 	write.table(predres,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
     }
+    predsdevdt <- t(data.frame(c(paste0("DEV_R",curcycle),predsdevl)))
+    write.table(predsdevdt,devmseout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
+    predsmsedt <- t(data.frame(c(paste0("MSE_R",curcycle),predsmsel)))
+    write.table(predsmsedt,devmseout,row.names=FALSE,col.names=FALSE,sep="\t",quote=FALSE,append=TRUE)
 
     glmperfm <- roc(response=alltruegroup, predictor=allpredgroup, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
     repauc <- paste0("AUC: ", glmperfm$auc)   
@@ -390,13 +401,13 @@ FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, cu
     return(popcoef)
 }
 
-RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, perfoutfig, selected.feat=NA) {
+RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA) {
     nfold <- as.numeric(nfold)
     numrep <- as.numeric(numrep)
     
     alpha <- as.numeric(alpha)
     mylambda <- as.numeric(mylambda)
-    glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",mylambda,"; using selected features: ",selected.feat)
+    glmparam <- paste("#GLM-alpha: ",alpha,", lambda: ",mylambda,"; using selected features: ",selected.feat)
     print(glmparam)
     write.table(glmparam,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
 
@@ -431,9 +442,10 @@ RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, num
         #set.seed(j)
         pfline <- paste("Replicate ",j)
         print(pfline)
-	predresheader <- paste("CV Rep",j)
+	predresheader <- paste("##CV Rep",j)
 	write.table(predresheader,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
-	popcoef <- FeatureGLMCV(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle=j, predresout)
+	#write.table(predresheader,devmseout,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
+	popcoef <- FeatureGLMCV(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle=j, predresout, devmseout)
 
         if (j == 1) {
             repcoef <- popcoef
