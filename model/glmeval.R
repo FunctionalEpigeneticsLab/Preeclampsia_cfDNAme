@@ -87,7 +87,18 @@ FlagHighVarianceCtrl <- function(ftmat) {
     return(lowvarindex)
 }
 
-GetTrainMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization=NA, lowvarfilter=FALSE, outmat) {
+GetTrainMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization=NA, outmat) {
+    flagidx <- LoadProbeIndex(flagindexfh)
+    inmat <- GetRawCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption)
+    
+    ftmat <- FlagFailedFeat(inmat)
+    ftmatnorm <- NormalizeCountMatrix(ftmat, normalization)
+    print(paste0("Keep ", dim(ftmatnorm)[2], " features for ", dim(ftmatnorm)[1], " subjects for training assessment"))
+    write.table(ftmatnorm,outmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
+    return(ftmatnorm)
+}
+
+GetBuildMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization=NA, lowvarfilter=FALSE, outmat) {
     flagidx <- LoadProbeIndex(flagindexfh)
     inmat <- GetRawCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption)
     
@@ -247,7 +258,7 @@ CoefRegular <- function(coeffh, flagindexfh, freqthresh, outfeat) {
     write.table(outdf, outfeat, row.names=FALSE, quote=FALSE, sep="\t")
 }
 
-FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig, selected.feat=NA) {
+FeatureGLMLoo <- function(ftmat, lowvarfilter, flagindexfh, alpha, lambda, outpred, outcoef, outfig, selected.feat=NA) {
     alpha <- as.numeric(alpha)
     lambda <- as.numeric(lambda)
     glmparam <- paste("GLM-alpha: ",alpha,", lambda: ",lambda,"; using selected features: ",selected.feat)
@@ -287,10 +298,18 @@ FeatureGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, o
 
     loopreds <- sapply(1:n_train, function(x) {
         traindt <- ftmat[-x,]
+	if (lowvarfilter) {
+	    print("Discard high varaince features identified in controls")
+            lowvarindex <- FlagHighVarianceCtrl(traindt)
+	    traindt <- traindt[,colnames(traindt) %in% lowvarindex]
+	    testdt <- t(as.data.frame(ftmat[x,colnames(ftmat) %in% lowvarindex]))
+	} else {
+	    testdt <- t(as.data.frame(ftmat[x,]))
+	}
         traingroup <- phenogroup[-x]
         wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
-        testdt <- t(as.data.frame(ftmat[x,]))
-        testgroup <- phenogroup[x]
+	testgroup <- phenogroup[x]
+	
         rglm.model <- glmnet(traindt, traingroup, family="binomial", alpha=alpha, weights=wts, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
         rglm.preds.type <- predict(rglm.model, testdt, type="class", s=lambda)
         rglm.preds.res <- predict(rglm.model, testdt, type="response", s=lambda)
@@ -412,7 +431,7 @@ RunGLMcoefReplicates <- function(ftmat, alpha, nfold, numrep, coefout, coefsumou
     write.table(outdf,coefsumout,row.names=FALSE,quote=FALSE,sep="\t")
 }
 
-FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle, predresout, devmseout) {
+FeatureGLMCV <- function(ftmat, lowvarfilter, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle, predresout, devmseout) {
     folds <- createFolds(phenogroup, k=nfold)
     predsmsel <- c()
     predsdevl <- c()
@@ -428,6 +447,12 @@ FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, cu
         wts <- as.vector(1/(table(traingroup)[traingroup]/length(traingroup)))
         testdt <- ftmat[x,]
         testgroup <- phenogroup[x]
+	if (lowvarfilter) {
+	    print("Discard high varaince features identified in controls")
+	    lowvarindex <- FlagHighVarianceCtrl(traindt)
+	    traindt <- traindt[,colnames(traindt) %in% lowvarindex]
+	    testdt <- testdt[,colnames(testdt) %in% lowvarindex]
+	}
 	cvmodel <- glmnet(traindt, traingroup, family="binomial", weights=wts, alpha=alpha, lambda=round(10^(seq(-3.5, 1.5, 0.05)),digit=5))
 	predsdev <- assess.glmnet(cvmodel, newx=testdt, newy=testgroup, family="binomial", s=mylambda)$deviance
 	predsdevl <- c(predsdevl, predsdev[1])
@@ -473,7 +498,7 @@ FeatureGLMCV <- function(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, cu
     return(popcoef)
 }
 
-RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA) {
+RunGLMAssessReplicates <- function(ftmat, lowvarfilter, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA) {
     nfold <- as.numeric(nfold)
     numrep <- as.numeric(numrep)
     
@@ -517,7 +542,7 @@ RunGLMAssessReplicates <- function(ftmat, flagindex, alpha, mylambda, nfold, num
 	predresheader <- paste("##CV Rep",j)
 	write.table(predresheader,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
 	#write.table(predresheader,devmseout,row.names=FALSE,col.names=FALSE,quote=FALSE,append=TRUE)
-	popcoef <- FeatureGLMCV(ftmat, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle=j, predresout, devmseout)
+	popcoef <- FeatureGLMCV(ftmat, lowvarfilter, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle=j, predresout, devmseout)
 
         if (j == 1) {
             repcoef <- popcoef
