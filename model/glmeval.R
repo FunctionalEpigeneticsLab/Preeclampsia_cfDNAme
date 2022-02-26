@@ -11,7 +11,113 @@ LoadProbeIndex <- function(indexfh) {
     return(idx)
 }
 
-GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", normalization=NA, outmat) {
+GetRawCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval") {
+    #' @title Read multiple samples into a data matrix
+    #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag\tCenter\tSeqBatch\tYear\n'
+    #' @param inputdir A directory path to methylation count of all samples
+    #' @param flagindexfh A tab-separated file contains capture information 'Chromosome\tStart\tEnd\tIndex\tProbe\tFlagIndex'
+    
+    #saminfo <- fread(sampleinfo, header=TRUE, sep="\t", colClasses=c("character","character","character","numeric","character","numeric","numeric","character","character","character","numeric"), data.table=FALSE)
+    saminfo <- fread(sampleinfo, header=TRUE, sep="\t", data.table=FALSE)
+    flagidx <- LoadProbeIndex(flagindexfh)
+    #datalist <- lapply()
+    inmat <- matrix()
+    
+    for (i in 1:nrow(saminfo)) {
+        print(paste("reading in subject ", saminfo[i,"SubjectID"]))
+	samfile <- paste0(saminfo[i,"SubjectID"], ".mavg.count.merge.tsv")
+	samfh <- file.path(inputdir, samfile)
+	curfh <- fread(samfh, header=TRUE, sep="\t", data.table=FALSE)
+	curfh <- merge(flagidx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
+	curfh <- curfh[order(curfh$Index),]
+		
+	if (cntoption == "mval") {
+	    curfh$calval <- log2((curfh$Methylated+1)/(curfh$Unmethylated+1))
+	} else if (cntoption == "betaval") {
+	    curfh$calval <- curfh$Methylated/(curfh$Methylated+curfh$Unmethylated)
+	} else {
+	    print("specify value to be calculated")
+	}
+		
+	if (i == 1) {
+	    inmat <- matrix(curfh$calval,nrow=1)
+	} else {
+	    inmat <- rbind(inmat, matrix(curfh$calval,nrow=1))
+	}
+    }
+    colnames(inmat) <- flagidx$Index
+    rownames(inmat) <- paste0(saminfo$SubjectID,":",saminfo$Phenotype)
+    #write.table(inmat,outmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
+    return(inmat)
+}
+
+FlagFailedFeat <- function(inmat) {
+    flagidx <- LoadProbeIndex(flagindexfh)
+    keepindex <- flagidx$Index[flagidx$FlagIndex==1]
+    ftmat <- inmat[,colnames(inmat) %in% keepindex]
+    return(ftmat)
+}
+
+NormalizeCountMatrix <- function(ftmat, normalization=NA) {
+    if (normalization=="meannorm") {
+	print("Normalize per sample methylation count by absMEAN")
+	normfactor <- apply(ftmat, 1, function(x) abs(mean(x)))
+	ftmatnorm <- ftmat/normfactor
+    } else if (normalization=="mediannorm") {
+	print("Normalize per sample methylation count by absMEDIAN")
+	normfactor <- apply(ftmat, 1, function(x) abs(median(x)))
+	ftmatnorm <- ftmat/normfactor
+    } else if (normalization=="ffnorm") {
+	#normalize on fetal fraction
+	#consider to to
+	print("to be implemented")
+    } else {
+	ftmatnorm <- ftmat
+    }
+    return(ftmatnorm)
+}
+
+FlagHighVarianceCtrl <- function(ftmat) {
+    ctrlftmat <- ftmat[sapply(strsplit(row.names(ftmat), split=':', fixed=TRUE), function(x) (x[2]))=="Ctrl",]
+    print(paste0("Control samples identified: ", dim(ctrlftmat)[1]))
+    ctrlftvar <- apply(ctrlftmat, 2, var)
+    lowvarindex <- colnames(ctrlftmat[,ctrlftvar < quantile(ctrlftvar, 0.75)])
+    #elimftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
+    #return(elimftmat)
+    return(lowvarindex)
+}
+
+GetTrainMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization=NA, lowvarfilter=FALSE, outmat) {
+    flagidx <- LoadProbeIndex(flagindexfh)
+    inmat <- GetRawCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption)
+    
+    ftmat <- FlagFailedFeat(inmat)
+    ftmatnorm <- NormalizeCountMatrix(ftmat, normalization)
+	
+    if (lowvarfilter) {
+        print("Discard high varaince features identified in controls")
+        lowvarindex <- FlagHighVarianceCtrl(ftmatnorm)
+        ftmatnorm <- ftmatnorm[,colnames(ftmatnorm) %in% lowvarindex]
+    } 
+    print(paste0("Keep ", dim(ftmatnorm)[2], " features for ", dim(ftmatnorm)[1], " subjects"))
+    write.table(ftmatnorm,outmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
+    return(ftmatnorm)
+}
+
+GetPredMatrixFeat <- function(trainftmat, predsampleinfo, inputdir, flagindexfh, cntoption, normalization, lowvarfilter, predoutmat) {
+    flagidx <- LoadProbeIndex(flagindexfh)
+    traindex <- colnames(trainftmat)
+    predinmat <- GetRawCountMatrix(predsampleinfo, inputdir, flagindexfh, cntoption)
+    predftmat <- FlagFailedFeat(predinmat)
+    predftmatnorm <- NormalizeCountMatrix(predftmat, normalization)
+    predftmatnorm <- predftmatnorm[,colnames(predftmatnorm) %in% traindex]
+    print(paste0("*********Apply final model on ",dim(predftmatnorm)[1], " subjects*********"))
+    print(paste0("Keep ", dim(predftmatnorm)[2]," features that were used in training input for prediction"))
+    write.table(predftmatnorm,predoutmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
+    return(predftmatnorm)
+}
+
+obsolete_GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", normalization=NA, outmat) {
     #' @title Read multiple samples into a data matrix
     #' @param sampleinfo A tab-separated file contains structured information 'SubjectID\tPhenotype\tDescription\tGA\tSampleID\tMMeanDep\tMMedianDep\tBSFlag\tCenter\tSeqBatch\tYear\n'
     #' @param inputdir A directory path to methylation count of all samples
@@ -63,40 +169,6 @@ GetCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval", 
     rownames(inmat) <- paste0(saminfo$SubjectID,":",saminfo$Phenotype)
     write.table(inmat,outmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
     return(inmat)
-}
-
-FlagHighVarianceCtrl <- function(ftmat) {
-    ctrlftmat <- ftmat[sapply(strsplit(row.names(ftmat), split=':', fixed=TRUE), function(x) (x[2]))=="Ctrl",]
-    print(paste0("Control samples identified: ", dim(ctrlftmat)[1]))
-    ctrlftvar <- apply(ctrlftmat, 2, var)
-    lowvarindex <- colnames(ctrlftmat[,ctrlftvar < quantile(ctrlftvar, 0.75)])
-    #elimftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
-    #return(elimftmat)
-    return(lowvarindex)
-}
-
-FilterCountMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat, lowvarfilter=FALSE) {
-    flagidx <- LoadProbeIndex(flagindexfh)
-    inmat <- GetCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat)
-    keepindex <- flagidx$Index[flagidx$FlagIndex==1]
-    ftmat <- inmat[,colnames(inmat) %in% keepindex]
-    if (lowvarfilter) {
-        print("Discard high varaince features identified in controls")
-        lowvarindex <- FlagHighVarianceCtrl(ftmat)
-        ftmat <- ftmat[,colnames(ftmat) %in% lowvarindex]
-    } 
-    print(paste0("Keep ", dim(ftmat)[2], " features for ", dim(ftmat)[1], " subjects"))
-    return(ftmat)
-}
-
-FilterPredCountMatrixFeat <- function(trainftmat, predsampleinfo, inputdir, flagindexfh, cntoption, normalization, predoutmat, lowvarfilter) {
-    flagidx <- LoadProbeIndex(flagindexfh)
-    traindex <- colnames(trainftmat)
-    predmat <- GetCountMatrix(predsampleinfo, inputdir, flagindexfh, cntoption, normalization, predoutmat)
-    predftmat <- predmat[,colnames(predmat) %in% traindex]
-    print(paste0("*********Apply final model on ",dim(predftmat)[1], " subjects*********"))
-    print(paste0("Keep ", dim(predftmat)[2]," features that were used in training input for prediction"))
-    return(predftmat)
 }
 
 obsolete_AssessGLMLoo <- function(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig) {
