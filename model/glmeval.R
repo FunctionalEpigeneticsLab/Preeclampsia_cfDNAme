@@ -333,14 +333,18 @@ FeatureGLMLoo <- function(ftmat, lowvarfilter, flagindexfh, alpha, lambda, outpr
     dev.off()
     print(glmperfm$auc)
     print(glmperfm$ci)
-    youdenbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="youden")
-    topleftbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="closest.topleft")
-    print(paste0("Youden best cutoff: ", youdenbest))
-    print(paste0("Topleft best cutoff: ", topleftbest))
+    youdenbest <- coords(glmperfm, "best", ret=c("threshold","specificity","sensitivity","accuracy","precision","recall"), transpose = FALSE, best.method="youden")
+    topleftbest <- coords(glmperfm, "best", ret=c("threshold","specificity","sensitivity","accuracy","precision","recall"), transpose = FALSE, best.method="closest.topleft")
+
+    print("Youden best cutoff: ")
+    print(youdenbest)
+    print("Topleft best cutoff: ")
+    print(topleftbest)
+
     ssupper <- 1.0
     sslower <- 0.55
     spupper <- 1.0
-    splower <- 0.65
+    splower <- 0.7
     glmcoords <- coords(roc=glmperfm, x = "all", transpose = FALSE)
     coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= ssupper),]
     print(coordacc)
@@ -431,6 +435,7 @@ RunGLMcoefReplicates <- function(ftmat, alpha, nfold, numrep, coefout, coefsumou
     write.table(outdf,coefsumout,row.names=FALSE,quote=FALSE,sep="\t")
 }
 
+
 FeatureGLMCV <- function(ftmat, lowvarfilter, sidgroup, phenogroup, alpha, mylambda, nfold, curcycle, predresout, devmseout) {
     folds <- createFolds(phenogroup, k=nfold)
     predsmsel <- c()
@@ -487,9 +492,19 @@ FeatureGLMCV <- function(ftmat, lowvarfilter, sidgroup, phenogroup, alpha, mylam
     topleftbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="closest.topleft")
     print(paste0("Youden best cutoff: ", youdenbest))
     print(paste0("Topleft best cutoff: ", topleftbest))
-    
+    ssupper <- 1.0
+    sslower <- 0.55
+    spupper <- 1.0
+    splower <- 0.7
+    glmcoords <- coords(roc=glmperfm, x = "all", transpose = FALSE)
+    coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= ssupper),]
+    print(coordacc)
+    youdenaim <- coords(roc=glmperfm, "best", ret=c("threshold","specificity","sensitivity","accuracy","precision","recall"), transpose=FALSE, best.method="youden")
+    topaim <- coords(roc=glmperfm, "best", ret=c("threshold","specificity","sensitivity","accuracy","precision","recall"), transpose=FALSE, best.method="closest.topleft")
     write.table(repauc,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
     write.table(repci,predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
+    write.table(c("Youden: ", youdenaim), predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
+    write.table(c("Topleft: ", topaim), predresout,row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t",append=TRUE)
     if (curcycle==1) {
         plot(glmperfm,print.auc=TRUE,print.auc.y=0.6-0.05*(curcycle-1),print.auc.x=0.3)
     } else {
