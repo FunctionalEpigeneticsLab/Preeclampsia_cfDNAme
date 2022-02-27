@@ -5,11 +5,12 @@ import os
 import statistics
 
 def summarize_cv(workdir, metricsumout):
-    devlist = []
-    mselist = []
-    auclist = []
     with open(metricsumout, 'w') as fo:
+        fo.write('Output\tmeanDEV\tsdDEV\tmeanMSE\tsdMSE\tmeanAUC\tsdAUC\n')
         for msefile in os.listdir(workdir):
+            devlist = []
+            mselist = []
+            auclist = []
             if msefile.endswith('devmse.out'):
                 paramprefix = msefile.rsplit('.',2)[0]
                 aucfile = f'{paramprefix}.predres.out'
@@ -23,6 +24,7 @@ def summarize_cv(workdir, metricsumout):
                             mselist = mselist + curmse
 
                 with open(aucfile, 'r') as fh1:
+                    print(aucfile)
                     for l1 in fh1:
                         if l1.startswith('AUC'):
                             curauc = l1.strip().split(': ')[1]
@@ -32,13 +34,14 @@ def summarize_cv(workdir, metricsumout):
                 devlist = list(map(float, devlist))
                 mselist = list(map(float, mselist))
                 auclist = list(map(float, auclist))
+                print(auclist)
                 meandev = statistics.mean(devlist)
                 sddev = statistics.stdev(devlist)
                 meanmse = statistics.mean(mselist)
                 sdmse = statistics.stdev(mselist)
                 meanauc = statistics.mean(auclist)
                 sdauc = statistics.stdev(auclist)
-                pfline = f'{msefile}\t{meandev}\t{sddev}\t{meanmse}\t{sdmse}\t{meanauc}\t{sdauc}\n'
+                pfline = f'{paramprefix}\t{meandev}\t{sddev}\t{meanmse}\t{sdmse}\t{meanauc}\t{sdauc}\n'
                 fo.write(pfline)
 
 
