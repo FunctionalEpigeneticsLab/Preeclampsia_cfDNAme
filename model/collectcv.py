@@ -6,7 +6,7 @@ import statistics
 
 def summarize_cv(workdir, metricsumout):
     with open(metricsumout, 'w') as fo:
-        fo.write('Output\tmeanDEV\tsdDEV\tmeanMSE\tsdMSE\tmeanAUC\tsdAUC\tmeanThresh1\tsdThresh1\tmeanThresh2\tsdThresh2\tmeanSpec1\tsdSpec1\tmeanSens1\tsdSens1\tmeanSpec2\tsdSpec2\tmeanSens2\tsdSens2\tmeanAcc1\tmeanPrec1\tmeanRecall1\tmeanAcc2\tmeanPrec2\tmeanRecall2\n')
+        fo.write('Output\tmeanDEV\tsdDEV\tmeanMSE\tsdMSE\tmeanAUC\tsdAUC\tmeanThresh1\tsdThresh1\tmeanThresh2\tsdThresh2\tmeanSpec1\tsdSpec1\tmeanSens1\tsdSens1\tmeanSpec2\tsdSpec2\tmeanSens2\tsdSens2\tmeanAcc1\tmeanPrec1\tmeanRecall1\tmeanAcc2\tmeanPrec2\tmeanRecall2\tYoudenF1\tTopleftF1\n')
         for msefile in os.listdir(workdir):
             devlist = []
             mselist = []
@@ -23,6 +23,8 @@ def summarize_cv(workdir, metricsumout):
             acc2list = []
             prec2list = []
             recall2list = []
+            youdenF1list = []
+            topleftF1list = []
             if msefile.endswith('devmse.out'):
                 paramprefix = msefile.rsplit('.',2)[0]
                 aucfile = f'{paramprefix}.predres.out'
@@ -47,18 +49,27 @@ def summarize_cv(workdir, metricsumout):
                             spec1list.append(curspec1)
                             sens1list.append(cursens1)
                             acc1list.append(curacc1)
+                            recall1list.append(currecall1)
                             if (curprec1 != "NA"):
                                 prec1list.append(curprec1)
-                            recall1list.append(currecall1)
+                                curprec1 = float(curprec1)
+                                currecall1 = float(currecall1)
+                                youdenF1 = 2*curprec1*currecall1/(curprec1+currecall1)
+                                youdenF1list.append(youdenF1)
+
                         elif l1.startswith('Topleft'):
                             (curmet, curthresh2, curspec2, cursens2, curacc2, curprec2, currecall2) = l1.strip().split('\t')
                             thresh2list.append(curthresh2)
                             spec2list.append(curspec2)
                             sens2list.append(cursens2)
                             acc2list.append(curacc2)
+                            recall2list.append(currecall2)
                             if (curprec2 != "NA"):
                                 prec2list.append(curprec2)
-                            recall2list.append(currecall2)
+                                curprec2 = float(curprec2)
+                                currecall2 = float(currecall2)
+                                topleftF1 = 2*curprec2*currecall2/(curprec2+currecall2)
+                                topleftF1list.append(topleftF1)
 
 
                 devlist = list(map(float, devlist))
@@ -109,7 +120,11 @@ def summarize_cv(workdir, metricsumout):
                 meanrecall2 = statistics.mean(recall2list)
                 sdrecall2 = statistics.stdev(recall2list)
 
-                pfline = f'{paramprefix}\t{meandev}\t{sddev}\t{meanmse}\t{sdmse}\t{meanauc}\t{sdauc}\t{meanthresh1}\t{sdthresh1}\t{meanthresh2}\t{sdthresh2}\t{meanspec1}\t{sdspec1}\t{meansens1}\t{sdsens1}\t{meanspec2}\t{sdspec2}\t{meansens2}\t{sdsens2}\t{meanacc1}\t{meanprec1}\t{meanrecall1}\t{meanacc2}\t{meanprec2}\t{meanrecall2}\n'
+                meanyoudenF1 = statistics.mean(youdenF1list)
+                meantopleftF1 = statistics.mean(topleftF1list)
+
+
+                pfline = f'{paramprefix}\t{meandev}\t{sddev}\t{meanmse}\t{sdmse}\t{meanauc}\t{sdauc}\t{meanthresh1}\t{sdthresh1}\t{meanthresh2}\t{sdthresh2}\t{meanspec1}\t{sdspec1}\t{meansens1}\t{sdsens1}\t{meanspec2}\t{sdspec2}\t{meansens2}\t{sdsens2}\t{meanacc1}\t{meanprec1}\t{meanrecall1}\t{meanacc2}\t{meanprec2}\t{meanrecall2}\t{meanyoudenF1}\t{meantopleftF1}\n'
                 fo.write(pfline)
 
 
