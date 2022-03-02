@@ -5,7 +5,7 @@ args <- commandArgs(TRUE)
 infh <- args[1]
 outfig <- args[2]
 
-getcvprob <- function(infh, outfig) {
+getcvprob <- function(infh, outfh, outfig) {
     fh <- fread(infh, header=FALSE, sep="\t", data.table=FALSE)
     colnames(fh) <- c("SubjectID","Phenotype","defaultcut","Prob")
     glmperfm <- roc(response=fh$Phenotype, predictor=fh$Prob, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
@@ -24,7 +24,8 @@ getcvprob <- function(infh, outfig) {
     glmcoords <- coords(roc=glmperfm, x="all", ret=c("threshold","specificity","sensitivity","accuracy","precision","recall"), transpose=FALSE)
     glmcoords$F1 <- 2*glmcoords$precision*glmcoords$recall/(glmcoords$precision+glmcoords$recall)
     coordacc <- glmcoords[(glmcoords$specificity >= splower & glmcoords$specificity <= spupper & glmcoords$sensitivity >= sslower & glmcoords$sensitivity <= ssupper),]
-    coordacc <- coordacc[order(coordacc$F1),]
+    coordacc <- coordacc[order(coordacc$accuracy),]
+    write.table(coordacc, outfh, sep="\t", row.names=FALSE, quote=FALSE)
     print(coordacc)
 
     pdf(outfig, height=9, width=9)
