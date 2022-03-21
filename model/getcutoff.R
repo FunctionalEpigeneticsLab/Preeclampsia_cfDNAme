@@ -3,7 +3,8 @@ library(pROC)
 
 args <- commandArgs(TRUE)
 infh <- args[1]
-outfig <- args[2]
+outfh <- args[2]
+outfig <- args[3]
 
 getcvprob <- function(infh, outfh, outfig) {
     fh <- fread(infh, header=FALSE, sep="\t", data.table=FALSE)
@@ -33,4 +34,4 @@ getcvprob <- function(infh, outfh, outfig) {
     dev.off()
 }
 
-getcvprob(infh, outfig)
+getcvprob(infh, outfh, outfig)
