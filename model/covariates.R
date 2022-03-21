@@ -1,0 +1,101 @@
+library(data.table)
+library(pROC)
+library(reshape2)
+library(ggplot2)
+
+args <- commandArgs(TRUE)
+infh <- args[1]
+allrocoutfig <- args[2]
+validrocoutfig <- args[3]
+modeloutfh <- args[4]
+predoutprefix <- args[5]
+classoutfig <- args[6]
+
+CombineFMF <- function(infh,allrocoutfig, validrocoutfig,modeloutfh,predoutprefix,classoutfig) {
+    fh <- fread(infh, header=TRUE, sep="\t", data.table=FALSE)
+    pescoreperfm <- roc(response=fh$Case.Ctrl,predictor=fh$PE.score,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    fmf34perfm <- roc(response=fh$Case.Ctrl,predictor=fh$FMFSCORE34,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    fmf37perfm <- roc(response=fh$Case.Ctrl,predictor=fh$FMFSCORE37,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    pdf(allrocoutfig, height=8, width=8)
+    plot(pescoreperfm,col="#045a8d",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.5,ci=TRUE,lwd=4)
+    plot(fmf34perfm,col="#3690c0",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.45,ci=TRUE,lwd=4,add=TRUE)
+    plot(fmf37perfm,col="#a6bddb",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4,ci=TRUE,lwd=4,add=TRUE)
+    legend("bottomright",legend=c("PEscore","FMFscore34","FMFscore37"),col=c("#045a8d","#3690c0","#a6bddb"),lwd=3)
+    dev.off()
+    
+    fh$Pheno <- ifelse(fh$Case.Ctrl=="Ctrl",0,1)
+    fh$log10FMFSCORE34 <- log10(fh$FMFSCORE34)
+    fh$log10FMFSCORE37 <- log10(fh$FMFSCORE37)
+    traindt <- subset(fh, Train.Validation=="Train")
+    testdt <- subset(fh, Train.Validation=="Validation")
+    trainglm1 <- glm(Pheno ~ PE.score+FMFSCORE34, family=binomial(link='logit'), data=traindt)
+    sink(modeloutfh)
+    print(summary(trainglm1))
+    
+    trainglm2 <- glm(Pheno ~ PE.score+log10FMFSCORE34, family=binomial(link='logit'), data=traindt)
+    print(summary(trainglm2))
+
+    trainglm3 <- glm(Pheno ~ PE.score+FMFSCORE37, family=binomial(link='logit'), data=traindt)
+    print(summary(trainglm3))
+
+    trainglm4 <- glm(Pheno ~ PE.score+log10FMFSCORE37, family=binomial(link='logit'), data=traindt)
+    print(summary(trainglm4))
+    sink()
+
+    testvars1 <- testdt[,c("PE.score","FMFSCORE34")]
+    testvars2 <- testdt[,c("PE.score","log10FMFSCORE34")]
+    testvars3 <- testdt[,c("PE.score","FMFSCORE37")]
+    testvars4 <- testdt[,c("PE.score","log10FMFSCORE37")]
+
+    testpred1 <- predict(trainglm1,newdata=testvars1,type="response")
+    testpredclass1 <- ifelse(testpred1 > 0.5,"Case","Ctrl")
+    predt1 <- cbind(testdt[,c("SubjectID","Case.Ctrl","PE.score","PE.score.label","FMFSCORE34","FMFRISK34","FMFSCORE37","FMFRISK37")],testpred1,testpredclass1)
+    outpred1 <- paste0(predoutprefix,".PEscore.FMFscore34.pred.out.tsv")
+    write.table(predt1,outpred1,row.names=FALSE,quote=FALSE,sep="\t")
+
+    testpred2 <- predict(trainglm2,newdata=testvars2,type="response")
+    testpredclass2 <- ifelse(testpred2 > 0.5,"Case","Ctrl")
+    predt2 <- cbind(testdt[,c("SubjectID","Case.Ctrl","PE.score","PE.score.label","FMFSCORE34","FMFRISK34","FMFSCORE37","FMFRISK37")],testpred2,testpredclass2)
+    outpred2 <-	paste0(predoutprefix,".PEscore.logFMFscore34.pred.out.tsv")
+    write.table(predt2,outpred2,row.names=FALSE,quote=FALSE,sep="\t")
+
+    testpred3 <- predict(trainglm3,newdata=testvars3,type="response")
+    testpredclass3 <- ifelse(testpred3 > 0.5,"Case","Ctrl")
+    predt3 <- cbind(testdt[,c("SubjectID","Case.Ctrl","PE.score","PE.score.label","FMFSCORE34","FMFRISK34","FMFSCORE37","FMFRISK37")],testpred3,testpredclass3)
+    outpred3 <-	paste0(predoutprefix,".PEscore.FMFscore37.pred.out.tsv")
+    write.table(predt3,outpred3,row.names=FALSE,quote=FALSE,sep="\t")
+
+    testpred4 <- predict(trainglm4,newdata=testvars4,type="response")
+    testpredclass4 <- ifelse(testpred4 > 0.5,"Case","Ctrl")
+    predt4 <- cbind(testdt[,c("SubjectID","Case.Ctrl","PE.score","PE.score.label","FMFSCORE34","FMFRISK34","FMFSCORE37","FMFRISK37")],testpred4,testpredclass4)
+    outpred4 <- paste0(predoutprefix,".PEscore.logFMFscore37.pred.out.tsv")
+    write.table(predt4,outpred4,row.names=FALSE,quote=FALSE,sep="\t")
+
+
+    validpespf <- roc(response=testdt$Case.Ctrl,predictor=testdt$PE.score,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    validlfmf34pf <- roc(response=testdt$Case.Ctrl,predictor=testdt$log10FMFSCORE34,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    validlfmf37pf <- roc(response=testdt$Case.Ctrl,predictor=testdt$log10FMFSCORE37,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    validpeadlfmf34pf <- roc(response=predt2$Case.Ctrl,predictor=predt2$testpred2,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    validpeadlfmf37pf <- roc(response=predt4$Case.Ctrl,predictor=predt4$testpred4,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    pdf(validrocoutfig, height=8, width=8)
+    plot(validpeadlfmf37pf,col="#1b7837",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.5,ci=TRUE,lwd=4)
+    plot(validpeadlfmf34pf,col="#5aae61",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.45,ci=TRUE,lwd=4,add=TRUE)
+    plot(validpespf,col="#762a83",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4,ci=TRUE,lwd=4,add=TRUE)
+    plot(validlfmf37pf,col="#9970ab",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.35,ci=TRUE,lwd=4,add=TRUE)
+    plot(validlfmf34pf,col="#c2a5cf",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.3,ci=TRUE,lwd=4,add=TRUE)
+    legend("bottomright",legend=c("PEscore+FMFscore37","PEscore+FMFscore34","PEscore","FMFscore37","FMFscore34"),col=c("#1b7837","#5aae61","#762a83","#9970ab","#c2a5cf"),lwd=2)
+    dev.off()
+
+    classdt <- merge(predt2,predt4,by=c("SubjectID","Case.Ctrl","PE.score","PE.score.label","FMFSCORE34","FMFRISK34","FMFSCORE37","FMFRISK37"))
+    print(head(classdt))
+    classdf <- classdt[,c("SubjectID","Case.Ctrl","PE.score.label","FMFRISK34","FMFRISK37","testpredclass2","testpredclass4")]
+    colnames(classdf) <- c("SubjectID","Disease","PEscoreMeth","FMFRISK34","FMFRISK37","MethPlus34","MethPlus37")
+    classdf_long <- melt(classdf,id.vars=c("SubjectID"),variable.name="Type",value.name="Class")
+    
+    pdf(classoutfig,height=9,width=6.3)
+    p1 <- ggplot(classdf_long,aes(x=Type,y=SubjectID,fill=Class))+geom_tile()+theme_bw()+theme(axis.text.x = element_text(angle = 45))+scale_fill_manual(values=c("#b2182b", "#2166ac","#d6604d","#4393c3"))
+    print(p1)
+    dev.off()
+}
+
+CombineFMF(infh,allrocoutfig, validrocoutfig,modeloutfh,predoutprefix,classoutfig)
