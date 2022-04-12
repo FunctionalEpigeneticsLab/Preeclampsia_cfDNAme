@@ -1,5 +1,6 @@
 library(data.table)
 library(pROC)
+library(dplyr)
 
 args <- commandArgs(TRUE)
 infh <- args[1]
@@ -7,9 +8,13 @@ outfh <- args[2]
 outfig <- args[3]
 
 getcvprob <- function(infh, outfh, outfig) {
-    fh <- fread(infh, header=FALSE, sep="\t", data.table=FALSE)
-    colnames(fh) <- c("SubjectID","Phenotype","defaultcut","Prob")
-    glmperfm <- roc(response=fh$Phenotype, predictor=fh$Prob, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
+    #fh <- fread(infh, header=FALSE, sep="\t", data.table=FALSE)
+    #colnames(fh) <- c("SubjectID","Phenotype","defaultcut","Prob")
+    #glmperfm <- roc(response=fh$Phenotype, predictor=fh$Prob, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
+    fhraw <- fread(infh, header=FALSE, sep="\t", data.table=FALSE)
+    colnames(fhraw) <- c("SubjectID","Phenotype","defaultcut","Prob")
+    fh <- fhraw %>% group_by(SubjectID, Phenotype) %>% summarise_at(vars(Prob),list(AvgPEscore=mean, SdPEscore=sd))	
+    glmperfm <- roc(response=fh$Phenotype, predictor=fh$AvgPEscore, ci=TRUE,levels=c("Ctrl","Case"), direction="<")
     repauc <- paste0("AUC: ", glmperfm$auc)   
     repci <- paste("CI: ", glmperfm$ci)
     youdenbest <- coords(glmperfm, "best", ret="threshold", transpose = FALSE, best.method="youden")
