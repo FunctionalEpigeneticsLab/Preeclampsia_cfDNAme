@@ -80,9 +80,13 @@ ValidCombineFMF <- function(infh, validoutfh, validrocfig, valid1rocfig, valid2r
     validlfmf37pf <- roc(response=predt$Case.Ctrl,predictor=predt$log10FMFSCORE37,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
     validpeadlfmf37pf <- roc(response=predt$Case.Ctrl,predictor=predt$testpred,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
 
+
     print("validpeadlfmf37pf vs. validpespf")
-    print(roc.test(validpeadlfmf37pf, validpespf))
-    print(roc.test(validpeadlfmf37pf, validpespf, method="bootstrap",boot.n=5000))
+    print(roc.test(validpeadlfmf37pf, validpespf, method="bootstrap",boot.n=10000,boot.stratified=FALSE,alternative="greater"))
+    print("validlfmf37pf vs. validpespf")
+    print(roc.test(validlfmf37pf,validpespf, method="bootstrap",boot.n=10000,boot.stratified=FALSE,alternative="greater"))
+    print("validpeadlfmf37pf vs. validlfmf37pf")
+    print(roc.test(validpeadlfmf37pf, validlfmf37pf, method="bootstrap",boot.n=10000,boot.stratified=FALSE,alternative="greater"))
 
     print("validpeadlfmf37")
     validpeadlfmf37coords90sp <- coords(roc=validpeadlfmf37pf, x=0.9,input="specificity", ret=c("sensitivity","accuracy","ppv","npv","threshold"), transpose = FALSE)
