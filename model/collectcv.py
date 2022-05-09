@@ -6,7 +6,7 @@ import statistics
 
 def summarize_cv(workdir, metricsumout):
     with open(metricsumout, 'w') as fo:
-        fo.write('Output\tmeanDEV\tsdDEV\tmeanMSE\tsdMSE\tmeanAUC\tsdAUC\tmeanThresh1\tsdThresh1\tmeanThresh2\tsdThresh2\tmeanSpec1\tsdSpec1\tmeanSens1\tsdSens1\tmeanSpec2\tsdSpec2\tmeanSens2\tsdSens2\tmeanAcc1\tmeanPrec1\tmeanRecall1\tmeanAcc2\tmeanPrec2\tmeanRecall2\tYoudenF1\tTopleftF1\n')
+        fo.write('Output\tmeanDEV\tsdDEV\tmeanMSE\tsdMSE\tmeanAUC\tsdAUC\tmeanThresh1\tsdThresh1\tmeanThresh2\tsdThresh2\tmeanSpec1\tsdSpec1\tmeanSens1\tsdSens1\tmeanSpec2\tsdSpec2\tmeanSens2\tsdSens2\tmeanAcc1\tmeanPrec1\tmeanRecall1\tmeanAcc2\tmeanPrec2\tmeanRecall2\tYoudenF1\tTopleftF1\tsdTopleftF1\n')
         for msefile in os.listdir(workdir):
             devlist = []
             mselist = []
@@ -122,9 +122,10 @@ def summarize_cv(workdir, metricsumout):
 
                 meanyoudenF1 = statistics.mean(youdenF1list)
                 meantopleftF1 = statistics.mean(topleftF1list)
+                sdtopleftF1 = statistics.stdev(topleftF1list)
 
 
-                pfline = f'{paramprefix}\t{meandev}\t{sddev}\t{meanmse}\t{sdmse}\t{meanauc}\t{sdauc}\t{meanthresh1}\t{sdthresh1}\t{meanthresh2}\t{sdthresh2}\t{meanspec1}\t{sdspec1}\t{meansens1}\t{sdsens1}\t{meanspec2}\t{sdspec2}\t{meansens2}\t{sdsens2}\t{meanacc1}\t{meanprec1}\t{meanrecall1}\t{meanacc2}\t{meanprec2}\t{meanrecall2}\t{meanyoudenF1}\t{meantopleftF1}\n'
+                pfline = f'{paramprefix}\t{meandev}\t{sddev}\t{meanmse}\t{sdmse}\t{meanauc}\t{sdauc}\t{meanthresh1}\t{sdthresh1}\t{meanthresh2}\t{sdthresh2}\t{meanspec1}\t{sdspec1}\t{meansens1}\t{sdsens1}\t{meanspec2}\t{sdspec2}\t{meansens2}\t{sdsens2}\t{meanacc1}\t{meanprec1}\t{meanrecall1}\t{meanacc2}\t{meanprec2}\t{meanrecall2}\t{meanyoudenF1}\t{meantopleftF1}\t{sdtopleftF1}\n'
                 fo.write(pfline)
 
 

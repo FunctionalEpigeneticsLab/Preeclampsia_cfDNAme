@@ -81,7 +81,7 @@ def write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, log
             pbsjobname = '#PBS -N trim_%s\n' % (sampleid)
             pbscredit = '#PBS -A %s\n\n' % (creditaccount)
             #when load home source, jave heap size problem occur; possibly corruption of tool environment; update all tools later
-            #pbsaddsource = 'source %s\n\n' % (addsourcetool)
+            pbsaddsource = 'source %s\n\n' % (addsourcetool)
             fo.write('#!/bin/bash -l\n\n')
             fo.write(pbsjobtime)
             fo.write(pbsnode)
@@ -90,7 +90,7 @@ def write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, log
             fo.write('#PBS -m abe\n')
             fo.write(pbsjobname)
             fo.write(pbscredit)
-            #fo.write(pbsaddsource)
+            fo.write(pbsaddsource)
 
             for fastqfile in os.listdir(fastqdir):
                 if fastqfile.startswith(sampleid) and fastqfile.endswith('R1.fastq.gz'):
