@@ -28,6 +28,8 @@ TrainingCombineFMF <- function(infh,trainrocfig, trainoutfh, traincombrocfig) {
     fh$Pheno <- ifelse(fh$Case.Ctrl=="Ctrl",0,1)
     fh$log10FMFSCORE37 <- log10(fh$FMFSCORE37)
 
+    trainallglm <- glm(Pheno ~ PE.score+log10FMFSCORE37+SeqFF, family=binomial(link='logit'), data=fh)
+
     n_train <- nrow(fh)
     for (i in 1:n_train) {
         traindt <- fh[-i,]
@@ -54,7 +56,7 @@ TrainingCombineFMF <- function(infh,trainrocfig, trainoutfh, traincombrocfig) {
     dev.off()
 }
 
-TrainingCombineFMF(infh,trainrocfig, trainoutfh, traincombrocfig)
+#TrainingCombineFMF(infh,trainrocfig, trainoutfh, traincombrocfig)
 
 ValidCombineFMF <- function(infh, validoutfh, validrocfig, valid1rocfig, valid2rocfig, classoutfig) {
     fh <- fread(infh, header=TRUE, sep="\t", data.table=FALSE)
@@ -151,7 +153,105 @@ ValidCombineFMF <- function(infh, validoutfh, validrocfig, valid1rocfig, valid2r
     dev.off()
 }
 
-ValidCombineFMF(infh, validoutfh, validrocfig, valid1rocfig, valid2rocfig, classoutfig)
+#ValidCombineFMF(infh, validoutfh, validrocfig, valid1rocfig, valid2rocfig, classoutfig)
+
+TrainingCombineSeqFF_FMF <- function(infh,trainrocfig, trainoutfh, traincombrocfig) {
+    fhall <- fread(infh, header=TRUE, sep="\t", data.table=FALSE)
+    fh <- subset(fhall, Train.Validation=="Training")
+    pescoreperfm <- roc(response=fh$Case.Ctrl,predictor=fh$PE.score,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    fmf37perfm <- roc(response=fh$Case.Ctrl,predictor=fh$FMFSCORE37,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    predt <- data.frame()
+    fh$Pheno <- ifelse(fh$Case.Ctrl=="Ctrl",0,1)
+    fh$log10FMFSCORE37 <- log10(fh$FMFSCORE37)
+
+    trainallglm <- glm(Pheno ~ PE.score+log10FMFSCORE37+SeqFF, family=binomial(link='logit'), data=fh)
+    print(summary(trainallglm))
+
+    n_train <- nrow(fh)
+    for (i in 1:n_train) {
+        traindt <- fh[-i,]
+	testvars <- as.data.frame(fh[i,c("PE.score","log10FMFSCORE37","SeqFF")])
+	trainglm <- glm(Pheno ~ PE.score+log10FMFSCORE37+SeqFF, family=binomial(link='logit'), data=traindt)
+
+	testpred <- predict(trainglm,newdata=testvars,type="response")
+	testpredclass <- ifelse(testpred > 0.5,"Case","Ctrl")
+	predres <- data.frame(testpred,testpredclass)
+	colnames(predres) <- c("CombinedScore","CombinedPred")
+
+	predt <- rbind(predt, predres)
+    }
+    print(head(fh))
+    outdt <- cbind(fh[,c("SubjectID","Case.Ctrl","PE.score","PE.score.label","FMFSCORE37","FMFRISK37","Center","SeqFF")],predt)
+    write.table(outdt, trainoutfh, row.names=FALSE, quote=FALSE, sep="\t")
+
+    combineperfm <- roc(response=outdt$Case.Ctrl,predictor=outdt$CombinedScore,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+
+    pdf(traincombrocfig, height=8, width=8)
+    plot(combineperfm,col="#1b7837",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.45,ci=TRUE,lwd=4,cex.lab=1.5,cex.axis=1.5)
+    plot(pescoreperfm,col="#762a83",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    plot(fmf37perfm,col="#9970ab",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.35,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    legend("bottomright",legend=c("cfDNAme score+FMF risk score+SeqFF","cfDNAme score","FMF risk score"),col=c("#1b7837","#762a83","#c2a5cf"),lwd=3,cex=1.5)
+    dev.off()
+}
+
+TrainingCombineSeqFF_FMF(infh,trainrocfig, trainoutfh, traincombrocfig)
+
+ValidCombineSeqFF_FMF <- function(infh, validoutfh, validrocfig, valid1rocfig, valid2rocfig) {
+    fh <- fread(infh, header=TRUE, sep="\t", data.table=FALSE)
+    fh$Pheno <- ifelse(fh$Case.Ctrl=="Ctrl",0,1)
+    fh$log10FMFSCORE37 <- log10(fh$FMFSCORE37)
+    traindt <- subset(fh, Train.Validation=="Training")
+    testdt <- subset(fh, Train.Validation=="Validation")
+
+    trainglm <- glm(Pheno ~ PE.score+log10FMFSCORE37+SeqFF, family=binomial(link='logit'), data=traindt)
+    print(summary(trainglm))
+    print("odds ratio")
+    print(exp(coef(trainglm)))
+    #sink()
+
+    testvars <- testdt[,c("PE.score","log10FMFSCORE37","SeqFF")]
+
+    testpred <- predict(trainglm,newdata=testvars,type="response")
+    testpredclass <- ifelse(testpred > 0.5,"Case","Ctrl")
+    predt <- cbind(testdt[,c("SubjectID","Case.Ctrl","PE.score","PE.score.label","FMFSCORE37","log10FMFSCORE37","FMFRISK37","Center","SeqFF")],testpred,testpredclass)
+    write.table(predt,validoutfh,row.names=FALSE,quote=FALSE,sep="\t")
+
+    validpespf <- roc(response=predt$Case.Ctrl,predictor=predt$PE.score,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    validlfmf37pf <- roc(response=predt$Case.Ctrl,predictor=predt$log10FMFSCORE37,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    validpeadSeqFFlfmf37pf <- roc(response=predt$Case.Ctrl,predictor=predt$testpred,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+
+    pdf(validrocfig, height=8, width=8)
+    plot(validpeadSeqFFlfmf37pf,col="#1b7837",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.45,ci=TRUE,lwd=4,cex.lab=1.5,cex.axis=1.5)
+    plot(validpespf,col="#762a83",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    plot(validlfmf37pf,col="#9970ab",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.35,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    legend("bottomright",legend=c("cfDNAme score+FMF risk score+SeqFF","cfDNAme score","FMF risk score"),col=c("#1b7837","#762a83","#c2a5cf"),lwd=3,cex=1.5)
+    dev.off()
+
+    ZOLpredt <- subset(predt,Center=="ZOL")
+    ZOLvalidpespf <- roc(response=ZOLpredt$Case.Ctrl,predictor=ZOLpredt$PE.score,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    ZOLvalidlfmf37pf <- roc(response=ZOLpredt$Case.Ctrl,predictor=ZOLpredt$log10FMFSCORE37,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    ZOLvalidpeadSeqFFlfmf37pf <- roc(response=ZOLpredt$Case.Ctrl,predictor=ZOLpredt$testpred,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    pdf(valid1rocfig, height=8, width=8)
+    plot(ZOLvalidpeadSeqFFlfmf37pf,col="#1b7837",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.45,ci=TRUE,lwd=4,cex.lab=1.5,cex.axis=1.5)
+    plot(ZOLvalidpespf,col="#762a83",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    plot(ZOLvalidlfmf37pf,col="#9970ab",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.35,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    legend("bottomright",legend=c("cfDNAme score+FMF risk score+SeqFF","cfDNAme score","FMF risk score"),col=c("#1b7837","#762a83","#c2a5cf"),lwd=3,cex=1.5)
+    dev.off()
+
+    SJBpredt <- subset(predt,Center=="SJB")
+    SJBvalidpespf <- roc(response=SJBpredt$Case.Ctrl,predictor=SJBpredt$PE.score,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    SJBvalidlfmf37pf <- roc(response=SJBpredt$Case.Ctrl,predictor=SJBpredt$log10FMFSCORE37,ci=TRUE,levels=c("Ctrl","Case"),direction=">")
+    SJBvalidpeadSeqFFlfmf37pf <- roc(response=SJBpredt$Case.Ctrl,predictor=SJBpredt$testpred,ci=TRUE,levels=c("Ctrl","Case"),direction="<")
+    pdf(valid2rocfig, height=8, width=8)
+    plot(SJBvalidpeadSeqFFlfmf37pf,col="#1b7837",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.45,ci=TRUE,lwd=4,cex.lab=1.5,cex.axis=1.5)
+    plot(SJBvalidpespf,col="#762a83",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.4,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    plot(SJBvalidlfmf37pf,col="#9970ab",print.auc=TRUE,print.auc.x=0.3,print.auc.y=0.35,ci=TRUE,lwd=4,add=TRUE,cex.lab=1.5,cex.axis=1.5)
+    legend("bottomright",legend=c("cfDNAme score+FMF risk score+SeqFF","cfDNAme score","FMF risk score"),col=c("#1b7837","#762a83","#c2a5cf"),lwd=3,cex=1.5)
+    dev.off()
+}
+
+ValidCombineSeqFF_FMF(infh, validoutfh, validrocfig, valid1rocfig, valid2rocfig)
+
 
 obsolete_CombineFMF <- function(infh,allrocoutfig, validrocoutfig,modeloutfh,predoutprefix,classoutfig) {
     fh <- fread(infh, header=TRUE, sep="\t", data.table=FALSE)
