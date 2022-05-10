@@ -12,6 +12,7 @@ def get_insert_metrics(workdir,inmetafh,outfh):
                 if not line.startswith("SubjectID"):
                     #subfragtotsize = 0
                     #subfragtotcnt = 0
+                    print(line)
                     subsizelist = []
                     linfo = line.strip().split('\t')
                     (subjid,pheno,sampleids,seqff,cfdname,libcon) = (linfo[0],linfo[1],linfo[4],linfo[11],linfo[15],linfo[16])
@@ -24,7 +25,7 @@ def get_insert_metrics(workdir,inmetafh,outfh):
                                     (fragsize,fragcount) = subline.strip().split('\t')
                                     subsizelist = subsizelist + [int(fragsize)]*int(fragcount)
                     else:
-                        curfh = f'{workdir}/{samid}/{samid}.merge.deduplicated.filtered.sorted.bam.finsert.tsv'
+                        curfh = f'{workdir}/{sampleids}/{sampleids}.merge.deduplicated.filtered.sorted.bam.finsert.tsv'
                         with open(curfh,'r') as subfh:
                             for subline in subfh:
                                 (fragsize,fragcount) = subline.strip().split('\t')
