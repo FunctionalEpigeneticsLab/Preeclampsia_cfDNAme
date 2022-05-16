@@ -5,6 +5,7 @@ library(ggplot2)
 library(viridis)
 library(cowplot)
 library(scales)
+library(dplyr)
 
 args <- commandArgs(TRUE)
 sampleinfo <- args[1]
@@ -118,4 +119,27 @@ PlotMatchSampleChange <- function(sampleinfo,inputdir,flagindexfh,cntoption="bet
     }  
 }
 
-PlotMatchSampleChange(sampleinfo,inputdir,flagindexfh,cntoption,outfigdir)
+#PlotMatchSampleChange(sampleinfo,inputdir,flagindexfh,cntoption,outfigdir)
+
+PlotSumChange <- function(sampleinfo,outfigdir,cntoption) {
+    saminfo <- fread(sampleinfo,header=TRUE,sep="\t",data.table=FALSE)
+    sumdiff <- data.frame()
+    for (i in 1:nrow(saminfo)) {
+        mdifffh <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".all.tsv")
+        print(mdifffh)
+        curfh <- fread(mdifffh,header=TRUE,sep="\t",data.table=FALSE)
+        curfh$mchange[is.na(curfh$mchange)] <- 0
+        curbindiff <- curfh %>% group_by(group=cut(abs(mchange),breaks=c(-1,1,5,10,20,50,100))) %>% summarise(n=n())
+        curbindiff$Individual <- saminfo[i,"Individual"]
+        curbindiff$Phenotype <- saminfo[i,"Phenotype"]
+        sumdiff <- rbind(sumdiff,curbindiff)
+    }
+    sumdiff$Phenotype <- factor(sumdiff$Phenotype,levels=c("Ctrl","Case"))
+    outfig <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".all.sum.boxplot.new.pdf")
+    pdf(outfig,width=7,height=5.8)
+    p1 <- ggplot(sumdiff,aes(x=group,y=n,fill=Phenotype))+geom_boxplot(position=position_dodge(1))+geom_dotplot(binwidth=0.1,dotsize=2,binaxis='y',stackdir='center',position=position_dodge(1))+theme_bw()+theme(axis.text.y=element_text(size=14,color="black"),axis.text.x=element_text(size=14,color="black",angle=45,vjust=0.5),legend.text=element_text(size=14),axis.title=element_text(size=14,color="black"))+scale_fill_manual(values=c("#999999","#E69F00"))+labs(x="Methylation difference between BS and OxBS",y="Region count")+scale_x_discrete(labels=c("< 1%","1% - 5%","5% - 10%","10% - 20%","20% - 50%", "> 50%"))
+    print(p1)
+    dev.off()
+}
+
+PlotSumChange(sampleinfo,outfigdir,cntoption)
