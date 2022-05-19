@@ -13,6 +13,7 @@ inputdir <- args[2]
 flagindexfh <- args[3]
 cntoption <- args[4]
 outfigdir <- args[5]
+regionlist <- args[6]
 
 LoadProbeIndex <- function(indexfh) {
     idx <- fread(indexfh,header=TRUE,sep="\t",data.table=FALSE)
@@ -142,4 +143,37 @@ PlotSumChange <- function(sampleinfo,outfigdir,cntoption) {
     dev.off()
 }
 
-PlotSumChange(sampleinfo,outfigdir,cntoption)
+#PlotSumChange(sampleinfo,outfigdir,cntoption)
+
+PlotHyperHypoChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
+    saminfo <- fread(sampleinfo,header=TRUE,sep="\t",data.table=FALSE)
+    regions <- fread(regionlist,header=FALSE,sep="\t",data.table=FALSE)
+    colnames(regions) <- c("Index","Material","Mtype")
+    sumdiff <- data.frame()
+    for (i in 1:nrow(saminfo)) {
+        mdifffh <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".all.tsv")
+        print(mdifffh)
+        curfh <- fread(mdifffh,header=TRUE,sep="\t",data.table=FALSE)
+        curfh$mchange[is.na(curfh$mchange)] <- 0
+	regionfh <- merge(regions,curfh,by=c("Index"),all.x=TRUE)
+	hyperfh <- subset(regionfh,Mtype=="Hypermethylated")
+	hypofh <- subset(regionfh,Mtype=="Hypomethylated")
+	hyperbindiff <- hyperfh %>% group_by(group=cut(abs(mchange),breaks=c(-1,1,5,10,20,50,100))) %>% summarise(n=n()) %>% mutate(freq = n / sum(n))
+	hypobindiff <- hypofh %>% group_by(group=cut(abs(mchange),breaks=c(-1,1,5,10,20,50,100))) %>% summarise(n=n()) %>% mutate(freq = n / sum(n))
+	hypobindiff$methyl <- "Hypomethylated"
+	hyperbindiff$methyl <- "Hypermethylated"
+	curbindiff <- rbind(hypobindiff,hyperbindiff)
+        curbindiff$Individual <- saminfo[i,"Individual"]
+        curbindiff$Phenotype <- saminfo[i,"Phenotype"]
+        sumdiff <- rbind(sumdiff,curbindiff)
+    }
+    sumdiff$methyl <- factor(sumdiff$methyl,levels=c("Hypomethylated","Hypermethylated"))
+    sumdiff$freq <- 100*sumdiff$freq
+    outfig <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".all.sum.boxplot.N2BShypohyper.pdf")
+    pdf(outfig,width=7,height=5.8)
+    p1 <- ggplot(sumdiff,aes(x=group,y=freq,fill=methyl))+geom_boxplot(position=position_dodge(1))+geom_dotplot(binwidth=0.1,dotsize=2,binaxis='y',stackdir='center',position=position_dodge(1))+theme_bw()+theme(axis.text.y=element_text(size=14,color="black"),axis.text.x=element_text(size=14,color="black",angle=45,vjust=0.5),legend.text=element_text(size=14),axis.title=element_text(size=14,color="black"))+scale_fill_manual(values=c("#e41a1c","#377eb8"))+labs(x="Methylation difference between BS and OxBS",y="Percentage of regions (%)")+scale_x_discrete(labels=c("< 1%","1% - 5%","5% - 10%","10% - 20%","20% - 50%", "> 50%"))
+    print(p1)
+    dev.off()
+}
+
+PlotHyperHypoChange(sampleinfo,outfigdir,cntoption,regionlist)
