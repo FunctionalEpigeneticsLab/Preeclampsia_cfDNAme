@@ -8,8 +8,9 @@ sampleinfo <- args[1]
 inputdir <- args[2]
 flagindexfh <- args[3]
 cntoption <- args[4]
-material <- args[5]
-outprefix <- args[6]
+normalization <- args[5]
+material <- args[6]
+outprefix <- args[7]
 
 LoadProbeIndex <- function(indexfh) {
     idx <- fread(indexfh, header=TRUE, sep="\t", data.table=FALSE)
@@ -22,6 +23,25 @@ FlagFailedFeat <- function(inmat) {
     keepindex <- flagidx$Index[flagidx$FlagIndex==1]
     ftmat <- inmat[,colnames(inmat) %in% keepindex]
     return(ftmat)
+}
+
+NormalizeCountMatrix <- function(ftmat, normalization=NA) {
+    if (normalization=="meannorm") {
+        print("Normalize per sample methylation count by absMEAN")
+        normfactor <- apply(ftmat, 1, function(x) abs(mean(x)))
+        ftmatnorm <- ftmat/normfactor
+    } else if (normalization=="mediannorm") {
+        print("Normalize per sample methylation count by absMEDIAN")
+        normfactor <- apply(ftmat, 1, function(x) abs(median(x)))
+        ftmatnorm <- ftmat/normfactor
+    } else if (normalization=="ffnorm") {
+        #normalize on fetal fraction
+        #consider to to
+        print("to be implemented")
+    } else {
+        ftmatnorm <- ftmat
+    }
+    return(ftmatnorm)
 }
 
 unadjvolcano <- function(mytoptable) {
@@ -78,7 +98,7 @@ adjvolcano <- function(mytoptable) {
        gridlines.minor = FALSE)
 }
 
-GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, material, outprefix) {
+GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization, material, outprefix) {
     saminfo <- fread(sampleinfo, header=TRUE, sep="\t", data.table=FALSE)
     flagidx <- LoadProbeIndex(flagindexfh)
     inmat <- matrix()
@@ -122,6 +142,7 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, materia
     ftmat <- ftmat[,apply(ftmat,2,function(x) !any(is.na(x)))]
     ftmat <- ftmat[,colSums(ftmat!=0)>0]
     #print(dim(ftmat))
+    ftmat <- NormalizeCountMatrix(ftmat, normalization)
     
     if (material == "Freshplacenta" || material == "FFPEplacenta" || material == "Blood") {
         Phenotype <- factor(saminfo$Phenotype)
@@ -139,16 +160,13 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, materia
         write.table(limmatable0,outfh0,row.names=TRUE,sep="\t",quote=FALSE)
 	
 	#transform FC from betaval to log2 FC - not strictly the way limma deal with expression data
-	if (cntoption == "betaval") {
-	    limmatable0$logFC <- sign(limmatable0$logFC)*log2(abs(limmatable0$logFC))
-	}
-	outfig0 <- paste0(outprefix,".",material,".",cntoption,".limma.FC.adjP.volcano.pdf")
+	outfig0 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.adjP.volcano.pdf")
         pdf(outfig0,height=7,width=7)
         p00 <- adjvolcano(limmatable0)
         print(p00)
         dev.off()
 
-        outfig01 <- paste0(outprefix,".",material,".",cntoption,".limma.FC.unadjP.volcano.pdf")
+        outfig01 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.unadjP.volcano.pdf")
         pdf(outfig01,height=7,width=7)
         p01 <- unadjvolcano(limmatable0)
         print(p01)
@@ -160,19 +178,16 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, materia
 	myfit1 <- contrasts.fit(myobj1, contrastmat1)
 	myfit1 <- eBayes(myfit1)
 	limmatable1 <- topTable(myfit1,number = ncol(ftmat))
-	outfh1 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_GA.tsv")
-	if (cntoption == "betaval") {
-            limmatable1$logFC <- sign(limmatable1$logFC)*log2(abs(limmatable1$logFC))
-        }
+	outfh1 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA.tsv")
 	write.table(limmatable1,outfh1,row.names=TRUE,sep="\t",quote=FALSE)
 	
-	outfig10 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_GA.FC.adjP.volcano.pdf")
+	outfig10 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA.FC.adjP.volcano.pdf")
 	pdf(outfig10,height=7,width=7)
 	p10 <- adjvolcano(limmatable1)
 	print(p10)
 	dev.off()
 
-        outfig11 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_GA.FC.unadjP.volcano.pdf")
+        outfig11 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA.FC.unadjP.volcano.pdf")
         pdf(outfig11,height=7,width=7)
         p11 <- unadjvolcano(limmatable1)
         print(p11)
@@ -180,7 +195,8 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, materia
     } else if (material == "cfDNAatDiagnosis" || material=="OxcfDNAatDiagnosis" || material == "cfDNAfirstT") {
         Phenotype <- factor(saminfo$Phenotype)
 	GA <- saminfo$GA
-	absMean <- apply(ftmat, 1, function(x) abs(mean(x)))
+	SeqDep <- saminfo$MMeanDep
+	MeanMeth <- apply(ftmat, 1, function(x) mean(x))
 
         design0 <- model.matrix(~ 0+Phenotype)
 	myobj0 <- lmFit(t(ftmat),design0)
@@ -188,69 +204,100 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, materia
 	myfit0 <- contrasts.fit(myobj0, contrastmat0)
         myfit0 <- eBayes(myfit0)
         limmatable0 <- topTable(myfit0,number = ncol(ftmat))
-        outfh0 <- paste0(outprefix,".",material,".",cntoption,".limma.tsv")
+        outfh0 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.tsv")
         write.table(limmatable0,outfh0,row.names=TRUE,sep="\t",quote=FALSE)
-	if (cntoption == "betaval") {
-            limmatable0$logFC <- sign(limmatable0$logFC)*log2(abs(limmatable0$logFC))
-        }
-	outfig00 <- paste0(outprefix,".",material,".",cntoption,".limma.FC.adjP.volcano.pdf")
+	outfig00 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.adjP.volcano.pdf")
         pdf(outfig00,height=7,width=7)
         p00 <- adjvolcano(limmatable0)
         print(p00)
         dev.off()
 
-        outfig01 <- paste0(outprefix,".",material,".",cntoption,".limma.FC.unadjP.volcano.pdf")
+        outfig01 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.unadjP.volcano.pdf")
         pdf(outfig01,height=7,width=7)
         p01 <- unadjvolcano(limmatable0)
         print(p01)
         dev.off()
 
-	design1 <- model.matrix(~ 0+Phenotype+absMean)
+	design1 <- model.matrix(~ 0+Phenotype+MeanMeth)
 	myobj1 <- lmFit(t(ftmat),design1)
 	contrastmat1 <- makeContrasts(PhenotypeCase-PhenotypeCtrl, levels=colnames(design1))
 	myfit1 <- contrasts.fit(myobj1, contrastmat1)
 	myfit1 <- eBayes(myfit1)
 	limmatable1 <- topTable(myfit1,number = ncol(ftmat))
-	outfh1 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_absMean.tsv")
+	outfh1 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.tsv")
 	write.table(limmatable1,outfh1,row.names=TRUE,sep="\t",quote=FALSE)
-	if (cntoption == "betaval") {
-            limmatable1$logFC <- sign(limmatable1$logFC)*log2(abs(limmatable1$logFC))
-        }
-	outfig10 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_absMean.FC.adjP.volcano.pdf")
+	outfig10 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.FC.adjP.volcano.pdf")
 	pdf(outfig10,height=7,width=7)
 	p10 <- adjvolcano(limmatable1)
 	print(p10)
 	dev.off()
 
-        outfig11 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_absMean.FC.unadjP.volcano.pdf")
+        outfig11 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.FC.unadjP.volcano.pdf")
         pdf(outfig11,height=7,width=7)
         p11 <- unadjvolcano(limmatable1)
         print(p11)
         dev.off()
 
-        design2 <- model.matrix(~ 0+Phenotype+GA+absMean)
-        myobj2 <- lmFit(t(ftmat),design2)
-        contrastmat2 <- makeContrasts(PhenotypeCase-PhenotypeCtrl, levels=colnames(design2))
-        myfit2 <- contrasts.fit(myobj2, contrastmat2)
-        myfit2 <- eBayes(myfit2)
-        limmatable2 <- topTable(myfit2,number = ncol(ftmat))
-        outfh2 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_GA_absMean.tsv")
-        write.table(limmatable2,outfh2,row.names=TRUE,sep="\t",quote=FALSE)
-	if (cntoption == "betaval") {
-            limmatable2$logFC <- sign(limmatable2$logFC)*log2(abs(limmatable2$logFC))
-        }
-        outfig20 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_GA_absMean.FC.adjP.volcano.pdf")
-        pdf(outfig20,height=7,width=7)
-        p20 <- adjvolcano(limmatable2)
-        print(p20)
+        #design2 <- model.matrix(~ 0+Phenotype+GA+MeanMeth)
+        #myobj2 <- lmFit(t(ftmat),design2)
+        #contrastmat2 <- makeContrasts(PhenotypeCase-PhenotypeCtrl, levels=colnames(design2))
+        #myfit2 <- contrasts.fit(myobj2, contrastmat2)
+        #myfit2 <- eBayes(myfit2)
+        #limmatable2 <- topTable(myfit2,number = ncol(ftmat))
+        #outfh2 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA_MeanMeth.tsv")
+        #write.table(limmatable2,outfh2,row.names=TRUE,sep="\t",quote=FALSE)
+        #outfig20 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA_MeanMeth.FC.adjP.volcano.pdf")
+        #pdf(outfig20,height=7,width=7)
+        #p20 <- adjvolcano(limmatable2)
+        #print(p20)
+        #dev.off()
+
+        #outfig21 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA_MeanMeth.FC.unadjP.volcano.pdf")
+        #pdf(outfig21,height=7,width=7)
+        #p21 <- unadjvolcano(limmatable2)
+        #print(p21)
+        #dev.off()
+
+        design3 <- model.matrix(~ 0+Phenotype+SeqDep)
+        myobj3 <- lmFit(t(ftmat),design3)
+        contrastmat3 <- makeContrasts(PhenotypeCase-PhenotypeCtrl, levels=colnames(design3))
+        myfit3 <- contrasts.fit(myobj3, contrastmat3)
+        myfit3 <- eBayes(myfit3)
+        limmatable3 <- topTable(myfit3,number = ncol(ftmat))
+        outfh3 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep.tsv")
+        write.table(limmatable3,outfh3,row.names=TRUE,sep="\t",quote=FALSE)
+        outfig30 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep.FC.adjP.volcano.pdf")
+        pdf(outfig30,height=7,width=7)
+        p30 <- adjvolcano(limmatable3)
+        print(p30)
         dev.off()
 
-        outfig21 <- paste0(outprefix,".",material,".",cntoption,".limma.factor_GA_absMean.FC.unadjP.volcano.pdf")
-        pdf(outfig21,height=7,width=7)
-        p21 <- unadjvolcano(limmatable2)
-        print(p21)
+        outfig31 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep.FC.unadjP.volcano.pdf")
+        pdf(outfig31,height=7,width=7)
+        p31 <- unadjvolcano(limmatable3)
+        print(p31)
+	dev.off()
+
+        design4 <- model.matrix(~ 0+Phenotype+SeqDep+MeanMeth)
+        myobj4 <- lmFit(t(ftmat),design4)
+        contrastmat4 <- makeContrasts(PhenotypeCase-PhenotypeCtrl, levels=colnames(design4))
+        myfit4 <- contrasts.fit(myobj4, contrastmat4)
+        myfit4 <- eBayes(myfit4)
+        limmatable4 <- topTable(myfit4,number = ncol(ftmat))
+        outfh4 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep_MeanMeth.tsv")
+        write.table(limmatable4,outfh4,row.names=TRUE,sep="\t",quote=FALSE)
+        outfig40 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep_MeanMeth.FC.adjP.volcano.pdf")
+        pdf(outfig40,height=7,width=7)
+        p40 <- adjvolcano(limmatable4)
+        print(p40)
+        dev.off()
+
+        outfig41 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep_MeanMeth.FC.unadjP.volcano.pdf")
+        pdf(outfig41,height=7,width=7)
+        p41 <- unadjvolcano(limmatable4)
+        print(p41)
         dev.off()
     }
 }
 
-GetLimmaMatrix(sampleinfo, inputdir, flagindexfh, cntoption, material, outprefix)
+GetLimmaMatrix(sampleinfo, inputdir, flagindexfh, cntoption, normalization, material, outprefix)
