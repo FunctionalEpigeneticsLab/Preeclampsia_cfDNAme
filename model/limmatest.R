@@ -2,6 +2,9 @@ library(data.table)
 library(limma)
 library(ggplot2)
 library(EnhancedVolcano)
+library(VennDiagram)
+library(eulerr)
+library(plyr)
 
 args <- commandArgs(TRUE)
 sampleinfo <- args[1]
@@ -301,3 +304,68 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
 }
 
 GetLimmaMatrix(sampleinfo, inputdir, flagindexfh, cntoption, normalization, material, outprefix)
+
+display_venn <- function(x, ...){
+  grid.newpage()
+  venn_object <- venn.diagram(x, filename = NULL, ...)
+  grid.draw(venn_object)
+}
+
+plotvenn <- function(sumfh,outfig1) {
+    fh <- fread(sumfh,header=FALSE,sep="\t",data.table=FALSE)
+    colnames(fh) <- c("Index","Material","Type")
+    FreshTissue <- fh[fh$Material=="FreshTissue",]$Index
+    FFPE <- fh[fh$Material=="FFPE",]$Index
+    cfDNA_1stTrimester <- fh[fh$Material=="cfDNA_1stTrimester",]$Index
+    cfDNA_atDiagnosis <- fh[fh$Material=="cfDNA_atDiagnosis",]$Index
+    vlists <- list(FreshTissue,FFPE,cfDNA_atDiagnosis,cfDNA_1stTrimester)
+    pdf(outfig1,height=7,width=7)
+    p1 <- display_venn(
+	    vlists,
+	    category.names = c("Fresh Tissue" , "FFPE " , "cfDNA at diagnosis", "cfDNA 1st trimester"),
+	    # Circles
+	    lwd = 2,
+	    lty = 'blank',
+	    fill = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+	    # Numbers
+	    cex = .9,
+	    fontface = "italic",
+	    # Set names
+	    cat.cex = 1,
+	    cat.fontface = "bold",
+	    cat.default.pos = "outer",
+	    cat.dist = c(0.055, 0.055, 0.1, 0.1)
+    )
+    print(p1)
+    dev.off()
+}
+
+ploteuler <- function(sumfh,outfig2) {
+    fh <- fread(sumfh,header=FALSE,sep="\t",data.table=FALSE)
+    colnames(fh) <- c("Index","Material","Type")
+    FreshTissue <- rep(TRUE,length(fh[fh$Material=="FreshTissue",]$Index))
+    names(FreshTissue) <- fh[fh$Material=="FreshTissue",]$Index
+    FFPE <- rep(TRUE,length(fh[fh$Material=="FFPE",]$Index))
+    names(FFPE) <- fh[fh$Material=="FFPE",]$Index
+    cfDNA_1stTrimester <- rep(TRUE,length(fh[fh$Material=="cfDNA_1stTrimester",]$Index))
+    names(cfDNA_1stTrimester) <- fh[fh$Material=="cfDNA_1stTrimester",]$Index
+    cfDNA_atDiagnosis <- rep(TRUE,length(fh[fh$Material=="cfDNA_atDiagnosis",]$Index))
+    names(cfDNA_atDiagnosis) <- fh[fh$Material=="cfDNA_atDiagnosis",]$Index
+
+    #vmat <- rbind.fill.matrix(t(FreshTissue), t(FFPE), t(cfDNA_atDiagnosis), t(cfDNA_1stTrimester))
+    #vmat[is.na(vmat)] <- FALSE
+    #eulmat <- t(vmat)
+    #colnames(eulmat) <- c("Fresh Tissue" , "FFPE " , "cfDNA at diagnosis", "cfDNA 1st trimester")
+    #eufit <- eulerr:euler(eulmat,shape="ellipse")
+
+    vmat <- rbind.fill.matrix(t(FreshTissue), t(cfDNA_atDiagnosis), t(cfDNA_1stTrimester))
+    vmat[is.na(vmat)] <- FALSE
+    eulmat <- t(vmat)
+    colnames(eulmat) <- c("Fresh Tissue" , "cfDNA at diagnosis", "cfDNA 1st trimester")
+    eufit <- eulerr::euler(eulmat,shape="ellipse")
+
+    pdf(outfig2,height=7,width=7)
+    p1 <- plot(eufit, fills = c("#a6cee3", "#b2df8a", "#fdbf6f"), quantities = TRUE)
+    print(p1)
+    dev.off()
+}
