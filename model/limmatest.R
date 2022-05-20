@@ -141,13 +141,14 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
     colnames(inmat) <- flagidx$Index
     ftmat <- FlagFailedFeat(inmat)
     ftmat <- as.data.frame(ftmat)
-    names(ftmat) <- paste0("I",colnames(ftmat))
+    #names(ftmat) <- paste0("I",colnames(ftmat))
+    names(ftmat) <- colnames(ftmat)
     ftmat <- ftmat[,apply(ftmat,2,function(x) !any(is.na(x)))]
     ftmat <- ftmat[,colSums(ftmat!=0)>0]
     #print(dim(ftmat))
     ftmat <- NormalizeCountMatrix(ftmat, normalization)
     
-    if (material == "Freshplacenta" || material == "FFPEplacenta" || material == "Blood") {
+    if (material == "Freshplacenta" || material == "FFPEplacenta" || material == "Mixplacenta"|| material == "Blood") {
         Phenotype <- factor(saminfo$Phenotype)
 	GA <- saminfo$GA
 
@@ -159,8 +160,11 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         limmatable0 <- topTable(myfit0,number = ncol(ftmat))
 	#print(max(-log10(limmatable0$P.Value)))
 	#print(max(-log10(limmatable0$adj.P.Val)))
-        outfh0 <- paste0(outprefix,".",material,".",cntoption,".limma.tsv")
-        write.table(limmatable0,outfh0,row.names=TRUE,sep="\t",quote=FALSE)
+	limmatable0$Index <- row.names(limmatable0)
+	fetchlimmatable0 <- merge(limmatable0,flagidx,by=c("Index"),all.x=TRUE)
+	fetchlimmatable0 <- fetchlimmatable0[order(fetchlimmatable0$adj.P.Val),]
+        outfh0 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.tsv")
+        write.table(fetchlimmatable0,outfh0,row.names=FALSE,sep="\t",quote=FALSE)
 	
 	#transform FC from betaval to log2 FC - not strictly the way limma deal with expression data
 	outfig0 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.adjP.volcano.pdf")
@@ -181,8 +185,11 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
 	myfit1 <- contrasts.fit(myobj1, contrastmat1)
 	myfit1 <- eBayes(myfit1)
 	limmatable1 <- topTable(myfit1,number = ncol(ftmat))
+	limmatable1$Index <- row.names(limmatable1)
+        fetchlimmatable1 <- merge(limmatable1,flagidx,by=c("Index"),all.x=TRUE)
+        fetchlimmatable1 <- fetchlimmatable1[order(fetchlimmatable1$adj.P.Val),]
 	outfh1 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA.tsv")
-	write.table(limmatable1,outfh1,row.names=TRUE,sep="\t",quote=FALSE)
+	write.table(fetchlimmatable1,outfh1,row.names=FALSE,sep="\t",quote=FALSE)
 	
 	outfig10 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_GA.FC.adjP.volcano.pdf")
 	pdf(outfig10,height=7,width=7)
@@ -208,7 +215,11 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         myfit0 <- eBayes(myfit0)
         limmatable0 <- topTable(myfit0,number = ncol(ftmat))
         outfh0 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.tsv")
-        write.table(limmatable0,outfh0,row.names=TRUE,sep="\t",quote=FALSE)
+	limmatable0$Index <- row.names(limmatable0)
+        fetchlimmatable0 <- merge(limmatable0,flagidx,by=c("Index"))
+        fetchlimmatable0 <- fetchlimmatable0[order(fetchlimmatable0$adj.P.Val),]
+        
+        write.table(fetchlimmatable0,outfh0,row.names=FALSE,sep="\t",quote=FALSE)
 	outfig00 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.adjP.volcano.pdf")
         pdf(outfig00,height=7,width=7)
         p00 <- adjvolcano(limmatable0)
@@ -227,8 +238,12 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
 	myfit1 <- contrasts.fit(myobj1, contrastmat1)
 	myfit1 <- eBayes(myfit1)
 	limmatable1 <- topTable(myfit1,number = ncol(ftmat))
+	limmatable1$Index <- row.names(limmatable1)
+        fetchlimmatable1 <- merge(limmatable1,flagidx,by=c("Index"))
+        fetchlimmatable1 <- fetchlimmatable1[order(fetchlimmatable1$adj.P.Val),]
 	outfh1 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.tsv")
-	write.table(limmatable1,outfh1,row.names=TRUE,sep="\t",quote=FALSE)
+        write.table(fetchlimmatable1,outfh1,row.names=FALSE,sep="\t",quote=FALSE)
+
 	outfig10 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.FC.adjP.volcano.pdf")
 	pdf(outfig10,height=7,width=7)
 	p10 <- adjvolcano(limmatable1)
@@ -268,7 +283,10 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         myfit3 <- eBayes(myfit3)
         limmatable3 <- topTable(myfit3,number = ncol(ftmat))
         outfh3 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep.tsv")
-        write.table(limmatable3,outfh3,row.names=TRUE,sep="\t",quote=FALSE)
+	limmatable3$Index <- row.names(limmatable3)
+        fetchlimmatable3 <- merge(limmatable3,flagidx,by=c("Index"))
+        fetchlimmatable3 <- fetchlimmatable3[order(fetchlimmatable3$adj.P.Val),]
+        write.table(fetchlimmatable3,outfh3,row.names=FALSE,sep="\t",quote=FALSE)
         outfig30 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep.FC.adjP.volcano.pdf")
         pdf(outfig30,height=7,width=7)
         p30 <- adjvolcano(limmatable3)
@@ -287,8 +305,11 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         myfit4 <- contrasts.fit(myobj4, contrastmat4)
         myfit4 <- eBayes(myfit4)
         limmatable4 <- topTable(myfit4,number = ncol(ftmat))
+	limmatable4$Index <- row.names(limmatable4)
+        fetchlimmatable4 <- merge(limmatable4,flagidx,by=c("Index"))
+        fetchlimmatable4 <- fetchlimmatable4[order(fetchlimmatable4$adj.P.Val),]
         outfh4 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep_MeanMeth.tsv")
-        write.table(limmatable4,outfh4,row.names=TRUE,sep="\t",quote=FALSE)
+        write.table(limmatable4,outfh4,row.names=FALSE,sep="\t",quote=FALSE)
         outfig40 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_SeqDep_MeanMeth.FC.adjP.volcano.pdf")
         pdf(outfig40,height=7,width=7)
         p40 <- adjvolcano(limmatable4)
