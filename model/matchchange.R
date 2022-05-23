@@ -150,6 +150,8 @@ PlotHyperHypoChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
     regions <- fread(regionlist,header=FALSE,sep="\t",data.table=FALSE)
     colnames(regions) <- c("Index","Material","Mtype")
     sumdiff <- data.frame()
+    hypersigdiff <- data.frame()
+    hyposigdiff <- data.frame()
     for (i in 1:nrow(saminfo)) {
         mdifffh <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".all.tsv")
         print(mdifffh)
@@ -158,6 +160,29 @@ PlotHyperHypoChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
 	regionfh <- merge(regions,curfh,by=c("Index"),all.x=TRUE)
 	hyperfh <- subset(regionfh,Mtype=="Hypermethylated")
 	hypofh <- subset(regionfh,Mtype=="Hypomethylated")
+	hyperfh$Individual <- saminfo[i,"Individual"]
+	hyperfh$Phenotype <- saminfo[i,"Phenotype"]
+	hypersigdiff <- rbind(hypersigdiff,hyperfh)
+	
+	hypofh$Individual <- saminfo[i,"Individual"]
+	hypofh$Phenotype <- saminfo[i,"Phenotype"]
+	hyposigdiff <- rbind(hyposigdiff,hypofh)
+
+        outfig0 <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".unadjP.hyper.pdf")
+        pdf(outfig0,height=5.6,width=5.6)
+        #p0 <- ggplot(combfh,aes(x=betaval1,y=betaval2))+geom_bin2d(bins=150)+theme_bw()+theme(legend.text=element_text(size=14),text=element_text(size=14,color="black"))+scale_fill_gradient(low="darkblue",high="cyan",trans="log10")+labs(fill = "Density (log)",x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
+	hypercorr <- round(cor(hyperfh$betaval1,hyperfh$betaval2,method=c("pearson")),3)
+	p0 <- ggplot(hyperfh,aes(x=betaval1,y=betaval2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(legend.text=element_text(size=14),text=element_text(size=14,color="black"))+geom_text(x=25,y=90,label=paste0("Pearson Correlation: ",hypercorr),color="darkred")+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
+        print(p0)
+	dev.off()
+	
+	outfig1 <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".unadjP.hypo.pdf")
+        pdf(outfig1,height=5.6,width=5.6)
+        hypocorr <- round(cor(hypofh$betaval1,hypofh$betaval2,method=c("pearson")),3)
+	p1 <- ggplot(hypofh,aes(x=betaval1,y=betaval2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(legend.text=element_text(size=14),text=element_text(size=14,color="black"))+geom_text(x=25,y=90,label=paste0("Pearson Correlation: ",hypocorr),color="darkred")+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
+        print(p1)
+        dev.off()
+	    
 	hyperbindiff <- hyperfh %>% group_by(group=cut(abs(mchange),breaks=c(-1,1,5,10,20,50,100))) %>% summarise(n=n()) %>% mutate(freq = n / sum(n))
 	hypobindiff <- hypofh %>% group_by(group=cut(abs(mchange),breaks=c(-1,1,5,10,20,50,100))) %>% summarise(n=n()) %>% mutate(freq = n / sum(n))
 	hypobindiff$methyl <- "Hypomethylated"
@@ -171,9 +196,49 @@ PlotHyperHypoChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
     sumdiff$freq <- 100*sumdiff$freq
     outfig <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".all.sum.boxplot.N2BShypohyper.pdf")
     pdf(outfig,width=7,height=5.8)
-    p1 <- ggplot(sumdiff,aes(x=group,y=freq,fill=methyl))+geom_boxplot(position=position_dodge(1))+geom_dotplot(binwidth=0.1,dotsize=2,binaxis='y',stackdir='center',position=position_dodge(1))+theme_bw()+theme(axis.text.y=element_text(size=14,color="black"),axis.text.x=element_text(size=14,color="black",angle=45,vjust=0.5),legend.text=element_text(size=14),axis.title=element_text(size=14,color="black"))+scale_fill_manual(values=c("#e41a1c","#377eb8"))+labs(x="Methylation difference between BS and OxBS",y="Percentage of regions (%)")+scale_x_discrete(labels=c("< 1%","1% - 5%","5% - 10%","10% - 20%","20% - 50%", "> 50%"))
-    print(p1)
+    pp <- ggplot(sumdiff,aes(x=group,y=freq,fill=methyl))+geom_boxplot(position=position_dodge(1))+geom_dotplot(binwidth=0.1,dotsize=2,binaxis='y',stackdir='center',position=position_dodge(1))+theme_bw()+theme(axis.text.y=element_text(size=14,color="black"),axis.text.x=element_text(size=14,color="black",angle=45,vjust=0.5),legend.text=element_text(size=14),axis.title=element_text(size=14,color="black"))+scale_fill_manual(values=c("#e41a1c","#377eb8"))+labs(x="Methylation difference between BS and OxBS",y="Percentage of regions (%)")+scale_x_discrete(labels=c("< 1%","1% - 5%","5% - 10%","10% - 20%","20% - 50%", "> 50%"))
+
+    sumhypersigdiff <- hypersigdiff %>% group_by(Index) %>% summarize(Mean1=mean(betaval1,na.rm=TRUE),Mean2=mean(betaval2,na.rm=TRUE))
+    outfig91 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".unadjP.hyper.allmean.pdf")
+    pdf(outfig91,width=5.6,height=5.6)
+    allhypercorr <- round(cor(sumhypersigdiff$Mean1,sumhypersigdiff$Mean2,method=c("pearson")),3)
+    p91 <- ggplot(sumhypersigdiff,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"))+geom_text(x=25,y=90,label=paste0("Pearson Correlation: ",hypercorr),color="darkred")+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
+    print(p91)
     dev.off()
+
+    sumhyposigdiff <- hyposigdiff %>% group_by(Index) %>% summarize(Mean1=mean(betaval1,na.rm=TRUE),Mean2=mean(betaval2,na.rm=TRUE))
+    outfig92 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".unadjP.hypo.allmean.pdf")
+    pdf(outfig92,width=5.6,height=5.6)
+    allhypocorr <- round(cor(sumhyposigdiff$Mean1,sumhyposigdiff$Mean2,method=c("pearson")),3)
+    p92 <- ggplot(sumhyposigdiff,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"))+geom_text(x=25,y=90,label=paste0("Pearson Correlation: ",hypocorr),color="darkred")+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
+    print(p92)
+    dev.off()
+
+    sumhypersigdiff2 <- hypersigdiff %>% group_by(Index,Phenotype) %>% summarize(Mean1=mean(betaval1,na.rm=TRUE),Mean2=mean(betaval2,na.rm=TRUE))
+    outfig93 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".unadjP.hyper.phenomean.pdf")
+    pdf(outfig93,width=9.6,height=5.6)
+    ctlhyper <- subset(sumhypersigdiff2,Phenotype=="Ctrl")
+    cashyper <- subset(sumhypersigdiff2,Phenotype=="Case")
+    ctlhypercorr <- round(cor(ctlhyper$Mean1,ctlhyper$Mean2,method=c("pearson")),3)
+    cashypercorr <- round(cor(cashyper$Mean1,cashyper$Mean2,method=c("pearson")),3)
+
+    corrtext <- data.frame(Phenotype=c("Case","Ctrl"),label=c(paste0("Pearson Correlation: ",cashypercorr),paste0("Pearson Correlation: ",ctlhypercorr)))
+    p93 <- ggplot(sumhypersigdiff2,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"),strip.text.x=element_text(size=14,color="black"),legend.position="none")+geom_text(data=corrtext,x=25,y=85,aes(label=label))+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))+facet_grid(.~Phenotype)
+    print(p93)
+    dev.off()
+
+    sumhyposigdiff2 <- hyposigdiff %>% group_by(Index,Phenotype) %>% summarize(Mean1=mean(betaval1,na.rm=TRUE),Mean2=mean(betaval2,na.rm=TRUE))
+    outfig94 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".unadjP.hypo.phenomean.pdf")
+    pdf(outfig94,width=9.6,height=5.6)
+    ctlhypo <- subset(sumhyposigdiff2,Phenotype=="Ctrl")
+    cashypo <- subset(sumhyposigdiff2,Phenotype=="Case")
+    ctlhypocorr <- round(cor(ctlhypo$Mean1,ctlhypo$Mean2,method=c("pearson")),3)
+    cashypocorr <- round(cor(cashypo$Mean1,cashypo$Mean2,method=c("pearson")),3)
+    corrtext <- data.frame(Phenotype=c("Case","Ctrl"),label=c(paste0("Pearson Correlation: ",cashypocorr),paste0("Pearson Correlation: ",ctlhypocorr)))
+    p94 <- ggplot(sumhyposigdiff2,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"),strip.text.x=element_text(size=14,color="black"),legend.position="none")+geom_text(data=corrtext,x=25,y=85,aes(label=label))+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))+facet_grid(.~Phenotype)
+    print(p94)
+    dev.off()
+    
 }
 
 PlotHyperHypoChange(sampleinfo,outfigdir,cntoption,regionlist)
