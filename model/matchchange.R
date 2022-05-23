@@ -262,7 +262,7 @@ PlotSigChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
         outfig0 <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".sig.adjP.pdf")
         pdf(outfig0,height=5.6,width=5.6)
         
-	allcorr <- round(cor(regionfh$betaval1,hyperfh$betaval2,method=c("pearson")),3)
+	allcorr <- round(cor(regionfh$betaval1,regionfh$betaval2,method=c("pearson")),3)
 	p0 <- ggplot(regionfh,aes(x=betaval1,y=betaval2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(legend.text=element_text(size=14),text=element_text(size=14,color="black"))+geom_text(x=25,y=90,label=paste0("Pearson Correlation: ",allcorr),color="darkred")+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
         print(p0)
 	dev.off()
