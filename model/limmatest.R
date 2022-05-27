@@ -101,6 +101,38 @@ adjvolcano <- function(mytoptable) {
        gridlines.minor = FALSE)
 }
 
+make_volcano <- function(result.limma,adj = FALSE,Annotate = TRUE,FDRcutoff = 0.05) {
+    maxfc <- max(result.limma$logFC)+0.1
+    myRange <- c(-maxfc,maxfc)
+    yaxlim <- c(0,max(-log10(result.limma$P.Value))+0.1)
+    
+    if (adj == FALSE) {
+        colors <- densCols(result.limma$logFC, -log10(result.limma$P.Value), nbin = 800, colramp = colorRampPalette(c("grey85", "black")))
+        colors2 <- densCols(subset(result.limma, subset =  P.Value < 0.05 & logFC < 0)$logFC, -log10(subset(result.limma, subset =  P.Value < 0.05 & logFC < 0)$P.Value), nbin=800, colramp = colorRampPalette(c("#52BDEC", "#0B1E57")))
+        colors3 <- densCols(subset(result.limma, subset =  P.Value < 0.05 & logFC > 0)$logFC, -log10(subset(result.limma, subset =  P.Value < 0.05 & logFC > 0)$P.Value), nbin=800, colramp = colorRampPalette(c("#FF665F", "#f71302")))
+        p1 <- ggplot(result.limma, aes(x = logFC, y = -log10(P.Value)))+geom_point(col = colors)+theme_bw()+xlim(myRange)+ylim(yaxlim)+geom_point(data = subset(result.limma, subset= P.Value < 0.05 & logFC < 0), aes(x = logFC, y = -log10(P.Value)), col = colors2)+geom_point(data = subset(result.limma, subset =  P.Value < 0.05 & logFC > 0), aes(x = logFC, y = -log10(P.Value)), col = colors3) +geom_hline(yintercept = -log10(0.05), col = "black", linetype = "dashed") + xlab('Fold change PE vs Control') + ylab(bquote(~-Log[10]~ italic('P'))) +theme(axis.title.x = element_text(size = 20), axis.title.y = element_text(size = 20), axis.text = element_text(size = 15))
+      
+        if (Annotate == TRUE){
+            a = nrow(subset(result.limma, subset = P.Value   < 0.05 & logFC < 0))
+            b = nrow(subset(result.limma, subset = P.Value   < 0.05 & logFC > 0))
+            c = nrow(subset(result.limma, subset = adj.P.Val < FDRcutoff & logFC < 0))
+            d = nrow(subset(result.limma, subset = adj.P.Val < FDRcutoff & logFC > 0))
+            p1 <- p1+annotate("text", y = yaxlim[2],x = myRange[2], label = "Unadjusted P-Value",hjust = "right", vjust = "top",size = 7.5, fontface = "bold")+annotate("text", y = yaxlim[2]*(5/6),    x = myRange[2], label = "Adjusted P-Value",hjust = "right", vjust = "top",size = 7.5, fontface = "bold") + annotate("text", y = yaxlim[2]*(5.65/6), x = myRange[2], label = paste0("N=",format(a, big.mark = ",", scientific = FALSE)), hjust = "right", vjust = "top", size = 5.5, color = "#52BDEC", fontface = "bold")+annotate("text", y = yaxlim[2]*(5.4/6),  x = myRange[2], label = paste0("N=",format(b, big.mark = ",", scientific = FALSE)), hjust = "right", vjust = "top", size = 5.5, color = "#FF665F", fontface = "bold")+annotate("text", y = yaxlim[2]*(4.65/6), x = myRange[2], label = paste0("N=",format(c, big.mark = ",", scientific = FALSE)), hjust = "right", vjust = "top", size = 5.5, color = "#52BDEC", fontface = "bold")+annotate("text", y = yaxlim[2]*(4.4/6),  x = myRange[2], label = paste0("N=",format(d, big.mark = ",", scientific = FALSE)), hjust = "right", vjust = "top", size = 5.5, color = "#FF665F", fontface = "bold")
+        } else if(Annotate == FALSE) {
+           p1 <- p1
+        }
+    } else if (sum(result.limma$adj.P.Val < FDRcutoff) < 50) {
+        colors <- densCols(result.limma$logFC, -log10(result.limma$adj.P.Val), nbin = 800, colramp = colorRampPalette(c("grey85", "black")))
+        p1 <- ggplot(result.limma, aes(x = logFC, y = -log10(adj.P.Val))) + geom_point(col = colors) + theme_bw() + xlim(myRange) + ylim(yaxlim)+geom_point(data = subset(result.limma, subset =  adj.P.Val < FDRcutoff & logFC < 0), aes(x = logFC, y = -log10(adj.P.Val)), col = "#0759ed") +geom_point(data = subset(result.limma, subset =  adj.P.Val < FDRcutoff & logFC > 0), aes(x = logFC, y = -log10(adj.P.Val)), col = "#f71302")+geom_hline(yintercept = -log10(0.05), col="black", linetype = "dashed") + xlab('Fold change PE vs Control')
+    } else {
+        colors <- densCols(result.limma$logFC, -log10(result.limma$adj.P.Val), nbin = 800, colramp = colorRampPalette(c("grey85", "black")))
+        colors2 <- densCols(subset(result.limma, subset =  adj.P.Val < FDRcutoff & logFC < 0)$logFC, -log10(subset(result.limma,subset =  adj.P.Val < FDRcutoff & logFC < 0)$adj.P.Val), nbin=800, colramp = colorRampPalette(c("#93b3ed", "#0759ed")))
+        colors3 <- densCols(subset(result.limma, subset =  adj.P.Val < FDRcutoff & logFC > 0)$logFC, -log10(subset(result.limma,subset =  adj.P.Val < FDRcutoff & logFC > 0)$adj.P.Val), nbin=800, colramp = colorRampPalette(c("#ed9993", "#A53D3D")))
+        p1 <- ggplot(result.limma, aes(x = logFC, y = -log10(adj.P.Val))) + geom_point(col = colors) + theme_bw() + xlim(myRange) + ylim(yaxlim)+geom_point(data = subset(result.limma, subset =  adj.P.Val < FDRcutoff & logFC < 0), aes(x = logFC, y = -log10(adj.P.Val)), col = colors2) +geom_point(data = subset(result.limma, subset =  adj.P.Val < FDRcutoff & logFC > 0), aes(x = logFC, y = -log10(adj.P.Val)), col = colors3)+geom_hline(yintercept = -log10(0.05), col = "black", linetype = "dashed") + xlab('Fold change PE vs Control')
+    }
+    return(p1)
+}
+
 GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization, material, outprefix) {
     saminfo <- fread(sampleinfo, header=TRUE, sep="\t", data.table=FALSE)
     flagidx <- LoadProbeIndex(flagindexfh)
@@ -179,6 +211,12 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         print(p01)
         dev.off()
 
+        outfig02 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.unadjP.protocol.volcano.pdf")
+	pdf(outfig02,height=7,width=7)
+        p02 <- make_volcano(limmatable0,adj = FALSE,Annotate = TRUE,FDRcutoff = 0.05)
+	print(p02)
+	dev.off()
+
 	design1 <- model.matrix(~ 0+Phenotype+GA)
 	myobj1 <- lmFit(t(ftmat),design1)
 	contrastmat1 <- makeContrasts(PhenotypeCase-PhenotypeCtrl, levels=colnames(design1))
@@ -202,6 +240,7 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         p11 <- unadjvolcano(limmatable1)
         print(p11)
         dev.off()
+
     } else if (material == "cfDNAatDiagnosis" || material=="OxcfDNAatDiagnosis" || material == "cfDNAfirstT") {
         Phenotype <- factor(saminfo$Phenotype)
 	GA <- saminfo$GA
@@ -230,6 +269,12 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         pdf(outfig01,height=7,width=7)
         p01 <- unadjvolcano(limmatable0)
         print(p01)
+        dev.off()
+
+        outfig02 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.FC.unadjP.protocol.volcano.pdf")
+        pdf(outfig02,height=7,width=7)
+        p02 <- make_volcano(limmatable0,adj = FALSE,Annotate = TRUE,FDRcutoff = 0.05)
+        print(p02)
         dev.off()
 
 	design1 <- model.matrix(~ 0+Phenotype+MeanMeth)
