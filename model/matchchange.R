@@ -6,6 +6,7 @@ library(viridis)
 library(cowplot)
 library(scales)
 library(dplyr)
+library(ggpubr)
 
 args <- commandArgs(TRUE)
 sampleinfo <- args[1]
@@ -238,7 +239,6 @@ PlotHyperHypoChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
     p94 <- ggplot(sumhyposigdiff2,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"),strip.text.x=element_text(size=14,color="black"),legend.position="none")+geom_text(data=corrtext,x=25,y=85,aes(label=label))+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))+facet_grid(.~Phenotype)
     print(p94)
     dev.off()
-    
 }
 
 #PlotHyperHypoChange(sampleinfo,outfigdir,cntoption,regionlist)
@@ -247,7 +247,7 @@ PlotSigChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
     saminfo <- fread(sampleinfo,header=TRUE,sep="\t",data.table=FALSE)
     regions <- fread(regionlist,header=FALSE,sep="\t",data.table=FALSE)
     colnames(regions) <- c("Index","Material","Mtype")
-	sigdiff <- data.frame()
+    sigdiff <- data.frame()
 
     for (i in 1:nrow(saminfo)) {
         mdifffh <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".all.tsv")
@@ -259,7 +259,8 @@ PlotSigChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
 	regionfh$Phenotype <- saminfo[i,"Phenotype"]
 	sigdiff <- rbind(sigdiff,regionfh)
 
-        outfig0 <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".sig.adjP.pdf")
+        #outfig0 <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"Individual"],".N2.bs.oxbs.methyldiff.",cntoption,".sig.adjP.pdf")
+	outfig0 <- paste0(outfigdir,"/",saminfo[i,"Phenotype"],".",saminfo[i,"INdividual"],".N2.bs.oxbs.methyldiff.",cntoption,"meannorm.unadjP.pdf")
         pdf(outfig0,height=5.6,width=5.6)
         
 	allcorr <- round(cor(regionfh$betaval1,regionfh$betaval2,method=c("pearson")),3)
@@ -269,22 +270,36 @@ PlotSigChange <- function(sampleinfo,outfigdir,cntoption,regionlist) {
     }
 
     sumsigdiff <- sigdiff %>% group_by(Index) %>% summarize(Mean1=mean(betaval1,na.rm=TRUE),Mean2=mean(betaval2,na.rm=TRUE))
-    outfig91 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".sig.adjP.allmean.pdf")
+    #outfig91 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".sig.adjP.allmean.pdf")
+    outfig91 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,"meannorm.unadjP.pdf")
     pdf(outfig91,width=5.6,height=5.6)
     allcorr <- round(cor(sumsigdiff$Mean1,sumsigdiff$Mean2,method=c("pearson")),3)
-    p91 <- ggplot(sumsigdiff,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"))+geom_text(x=25,y=90,label=paste0("Pearson Correlation: ",allcorr),color="darkred")+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
+    p91 <- ggplot(sumsigdiff,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+geom_smooth(method="lm",se=FALSE,color="gray")+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"))+geom_abline(intercept =0 , slope = 1,color="black",linetype=2)+stat_regline_equation(label.x=10,label.y=85,aes(label = ..eq.label..),color="darkred")+stat_regline_equation(label.x=10,label.y=80,aes(label = ..rr.label..),color="darkred")+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))
     print(p91)
     dev.off()
 
     sumsigdiff2 <- sigdiff %>% group_by(Index,Phenotype) %>% summarize(Mean1=mean(betaval1,na.rm=TRUE),Mean2=mean(betaval2,na.rm=TRUE))
-    outfig93 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".sig.adjP.phenomean.pdf")
-    pdf(outfig93,width=9.6,height=5.6)
+    #outfig93 <- paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,".sig.adjP.phenomean.pdf")
+    #pdf(outfig93,width=9.6,height=5.6)
+    #ctldt <- subset(sumsigdiff2,Phenotype=="Ctrl")
+    #casdt <- subset(sumsigdiff2,Phenotype=="Case")
+    #ctlcorr <- round(cor(ctldt$Mean1,ctldt$Mean2,method=c("pearson")),3)
+    #cascorr <- round(cor(casdt$Mean1,casdt$Mean2,method=c("pearson")),3)
+    #corrtext <- data.frame(Phenotype=c("Case","Ctrl"),label=c(paste0("Pearson Correlation: ",cascorr),paste0("Pearson Correlation: ",ctlcorr)))
+    #p93 <- ggplot(sumsigdiff2,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"),strip.text.x=element_text(size=14,color="black"),legend.position="none")+geom_text(data=corrtext,x=25,y=85,aes(label=label))+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))+facet_grid(.~Phenotype)
+    #print(p93)
+    #dev.off()
+
+    outfig93 <-	paste0(outfigdir,"/N2.bs.oxbs.methyldiff.",cntoption,"meannorm.unadjP.phenomean.pdf")
+    pdf(outfig93,width=5.6,height=5.6)
     ctldt <- subset(sumsigdiff2,Phenotype=="Ctrl")
     casdt <- subset(sumsigdiff2,Phenotype=="Case")
-    ctlcorr <- round(cor(ctldt$Mean1,ctldt$Mean2,method=c("pearson")),3)
-    cascorr <- round(cor(casdt$Mean1,casdt$Mean2,method=c("pearson")),3)
-    corrtext <- data.frame(Phenotype=c("Case","Ctrl"),label=c(paste0("Pearson Correlation: ",cascorr),paste0("Pearson Correlation: ",ctlcorr)))
-    p93 <- ggplot(sumsigdiff2,aes(x=Mean1,y=Mean2))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"),strip.text.x=element_text(size=14,color="black"),legend.position="none")+geom_text(data=corrtext,x=25,y=85,aes(label=label))+labs(x="BS methylation level",y="OxBS methylation level")+scale_x_continuous(limits = c(-1, 100))+scale_y_continuous(limits = c(-1, 100))+facet_grid(.~Phenotype)
+    ctldt$ctldiff <- ctldt$Mean1-ctldt$Mean2
+    casdt$casdiff <- casdt$Mean1-casdt$Mean2
+    ctldx <- ctldt[,c("Index","ctldiff")]
+    casdx <- casdt[,c("Index","casdiff")]
+    plotdt <- merge(ctldx,casdx,by=c("Index"),all=TRUE)
+    p93 <- ggplot(plotdt,aes(x=ctldiff,y=casdiff))+geom_point(size=1,color="darkblue",alpha=0.5)+theme_bw()+theme(axis.text=element_text(size=14,color="black"),axis.title=element_text(size=14,color="black"),strip.text.x=element_text(size=14,color="black"),legend.position="none")+labs(x="Control mean difference",y="PE mean difference")+scale_x_continuous(limits = c(-40, 25))+scale_y_continuous(limits = c(-40, 25))
     print(p93)
     dev.off()
 }
