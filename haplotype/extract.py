@@ -19,7 +19,8 @@ def format_extract(fraginfofh, outfh):
                     if mpos != "NULL":
                         mposlist = mpos.split(",")
                         for Z in mposlist:
-                            if int(Z) > int(tarstart) and int(Z) < int(tarend):
+                            #if int(Z) > int(tarstart) and int(Z) < int(tarend):
+                            if int(Z) > (int(tarstart)+20) and int(Z) < (int(tarend)-20):
                                 tarhapdict[Z] = "C"
                             else:
                                 pass
@@ -27,7 +28,7 @@ def format_extract(fraginfofh, outfh):
                     if umpos != "NULL":
                         umposlist = umpos.split(",")
                         for z in umposlist:
-                            if int(z) > int(tarstart) and int(z) < int(tarend):
+                            if int(z) > (int(tarstart)+20) and int(z) < (int(tarend)-20):
                                 tarhapdict[z] = "T"
                             else:
                                 pass

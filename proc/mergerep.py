@@ -13,10 +13,10 @@ def mergeseqmetainfo(codefh, metafh, seqdepfh, bsconversion, outmergefh):
        2. merge replicates sequencing depth info
        3. fetch meta info and flag failed subjects
     '''
-    bscdict = dict()
-    seqdict = dict()
-    codedict = dict()
-    metadict = dict()
+    bscdict = defaultdict()
+    seqdict = defaultdict()
+    codedict = defaultdict()
+    metadict = defaultdict()
 
     with open(bsconversion, 'r') as fh0:
         for l0 in fh0:
@@ -55,6 +55,8 @@ def mergeseqmetainfo(codefh, metafh, seqdepfh, bsconversion, outmergefh):
             msubid_pos = int(headerl.index('Study.Code.NIPT'))
         elif re.search(r'Study.Code.Tissue', headerline):
             msubid_pos = int(headerl.index('Study.Code.Tissue'))
+        elif re.search(r'Study.Code.B2', headerline):
+            msubid_pos = int(headerl.index('Study.Code.B2'))
         else:
             raise ValueError("sample id field not found")
 

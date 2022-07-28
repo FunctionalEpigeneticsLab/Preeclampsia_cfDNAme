@@ -31,7 +31,7 @@ def collectdiaginfo(invcf, outfh):
                         #samFT = lineinfo[i].split(':')[0]
                         #count the first feature
                         samFT = re.split(':|;',lineinfo[i])[0]
-                        print(samFT)
+
                         if samFT == "BAD_MATE":
                             nbadmate += 1
                         elif samFT == "COVERAGE_GAPS":
@@ -46,7 +46,8 @@ def collectdiaginfo(invcf, outfh):
                             npass += 1
                         elif samFT == "POOR_QUALITY":
                             npoorq += 1
-                    if (nbadmate+ngap+nlow+nnoread+npoorq) > nsam/2:
+                    #if bad targets present in more than 80% of samples
+                    if (nbadmate+ngap+nlow+nnoread+npoorq) > nsam*0.3:
                         QCFlag = "Fail"
                     else:
                         QCFlag = "Pass"
