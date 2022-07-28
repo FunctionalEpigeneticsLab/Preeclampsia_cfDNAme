@@ -241,7 +241,7 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         print(p11)
         dev.off()
 
-    } else if (material == "cfDNAatDiagnosis" || material=="OxcfDNAatDiagnosis" || material == "cfDNAfirstT") {
+    } else if (material == "cfDNAatDiagnosis" || material=="OxcfDNAatDiagnosis" || material == "cfDNAfirstT" || material == "cfDNAfirstT_valid") {
         Phenotype <- factor(saminfo$Phenotype)
 	GA <- saminfo$GA
 	SeqDep <- saminfo$MMeanDep
