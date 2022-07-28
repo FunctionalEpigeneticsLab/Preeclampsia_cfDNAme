@@ -8,15 +8,6 @@ library(plyr)
 
 # Differential methylation analysis
 
-args <- commandArgs(TRUE)
-sampleinfo <- args[1]
-inputdir <- args[2]
-flagindexfh <- args[3]
-cntoption <- args[4]
-normalization <- args[5]
-material <- args[6]
-outprefix <- args[7]
-
 LoadProbeIndex <- function(indexfh) {
     idx <- fread(indexfh, header=TRUE, sep="\t", data.table=FALSE)
     idx <- idx[order(idx$Index),]
