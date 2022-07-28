@@ -1,6 +1,8 @@
+script.dir <- "./"
+glmeval <- file.path(script.dir,"glmeval.R")
 source(glmeval)
 
-#set.seed(2022)
+set.seed(2022)
 args <- commandArgs(TRUE)
 sampleinfo <- args[1]
 inputdir <- args[2]

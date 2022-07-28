@@ -1,3 +1,5 @@
+script.dir <- "./"
+glmeval <- file.path(script.dir,"glmeval.R")
 source(glmeval)
 
 args <- commandArgs(TRUE)

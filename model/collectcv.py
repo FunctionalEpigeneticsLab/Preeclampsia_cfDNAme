@@ -4,6 +4,10 @@ import sys
 import os
 import statistics
 
+'''
+   collect performance metrics from cross-validation runs
+'''
+
 def summarize_cv(workdir, metricsumout):
     with open(metricsumout, 'w') as fo:
         fo.write('Output\tmeanDEV\tsdDEV\tmeanMSE\tsdMSE\tmeanAUC\tsdAUC\tmeanThresh1\tsdThresh1\tmeanThresh2\tsdThresh2\tmeanSpec1\tsdSpec1\tmeanSens1\tsdSens1\tmeanSpec2\tsdSpec2\tmeanSens2\tsdSens2\tmeanAcc1\tmeanPrec1\tmeanRecall1\tmeanAcc2\tmeanPrec2\tmeanRecall2\tYoudenF1\tTopleftF1\tsdTopleftF1\n')
