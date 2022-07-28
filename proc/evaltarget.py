@@ -5,7 +5,15 @@ import os
 import time
 import re
 
-def collectdiaginfo(invcf, outfh):
+'''
+   examine problematic capture regions from a set of samples
+   - input file: GATK -T DiagnoseTargets output (vcf file)
+   - input parameter: a float indicating proportion of samples to define Pass/Fail of a region
+   - output file: tab-separated file with Pass/Fail QCFlag
+'''
+
+def collectdiaginfo(invcf, outfh, prop):
+    prop = float(prop)
     with open(outfh, 'w') as fo:
         fo.write('Chromosome\tStart\tEnd\tQCFlag\tBAD_MATE\tCOVERAGE_GAPS\tEXCESSIVE_COVERAGE\tLOW_COVERAGE\tNO_READS\tPASS\tPOOR_QUALITY\n')
         with open(invcf, 'r') as fh:
@@ -46,8 +54,9 @@ def collectdiaginfo(invcf, outfh):
                             npass += 1
                         elif samFT == "POOR_QUALITY":
                             npoorq += 1
-                    #if bad targets present in more than 80% of samples
-                    if (nbadmate+ngap+nlow+nnoread+npoorq) > nsam*0.3:
+                    #if bad targets present in more than 70% of samples
+                    #if (nbadmate+ngap+nlow+nnoread+npoorq) > nsam*0.3:
+                    if (nbadmate+ngap+nlow+nnoread+npoorq) > nsam*prop:
                         QCFlag = "Fail"
                     else:
                         QCFlag = "Pass"
@@ -55,4 +64,4 @@ def collectdiaginfo(invcf, outfh):
                     fo.write(pfline)
 
 if __name__ == '__main__':
-    collectdiaginfo(sys.argv[1], sys.argv[2])
+    collectdiaginfo(sys.argv[1], sys.argv[2], sys.argv[3])
