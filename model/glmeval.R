@@ -5,6 +5,8 @@ library(e1071)
 library(pROC)
 library(glmnet)
 
+# model training and prediction
+
 LoadProbeIndex <- function(indexfh) {
     idx <- fread(indexfh, header=TRUE, sep="\t", data.table=FALSE)
     idx <- idx[order(idx$Index),]

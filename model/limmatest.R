@@ -6,6 +6,8 @@ library(VennDiagram)
 library(eulerr)
 library(plyr)
 
+# Differential methylation analysis
+
 args <- commandArgs(TRUE)
 sampleinfo <- args[1]
 inputdir <- args[2]
