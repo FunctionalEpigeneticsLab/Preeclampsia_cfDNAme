@@ -4,20 +4,8 @@ library(reshape2)
 library(ggplot2)
 
 # Combine eRPM/FMF scores with PE scores
-
-args <- commandArgs(TRUE)
-infh <- args[1]
-FMFscore <- args[2] #FMFSCORE34 or FMFSCORE37
-trainrocfig <- args[3]
-trainoutfh <- args[4]
-traincombrocfig <- args[5]
-validoutfh <- args[6]
-validrocfig <- args[7]
-valid1rocfig <- args[8]
-valid2rocfig <- args[9]
-classoutfig <- args[10]
-
 ## Combine scores using the training dataset and evaluate performance with leave-one-out analysis
+
 TrainingCombineFMF <- function(infh,FMFscore,trainrocfig, trainoutfh, traincombrocfig) {
     print(FMFscore)
     fhall <- fread(infh, header=TRUE, sep="\t", data.table=FALSE)
@@ -62,8 +50,6 @@ TrainingCombineFMF <- function(infh,FMFscore,trainrocfig, trainoutfh, traincombr
     legend("bottomright",legend=c("cfDNAme score+FMF risk score","cfDNAme score","FMF risk score"),col=c("#1b7837","#762a83","#c2a5cf"),lwd=3,cex=1.5)
     dev.off()
 }
-
-TrainingCombineFMF(infh,FMFscore,trainrocfig, trainoutfh, traincombrocfig)
 
 ## Use the combined model to perform prediction on the validation dataset
 
@@ -160,8 +146,6 @@ ValidCombineFMF <- function(infh,FMFscore,validoutfh, validrocfig, valid1rocfig,
     print(p1)
     dev.off()
 }
-
-ValidCombineFMF(infh, FMFscore, validoutfh, validrocfig, valid1rocfig, valid2rocfig, classoutfig)
 
 ### Combine PE, ePRM/FMF, and seqFF for prediction
 
