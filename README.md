@@ -2,7 +2,7 @@
 
 The scripts provide details for the analyses performed in xxx
 
-> This is not the release of a software package. All scripts and binaries are provided as is, without any warranty. We are only providing this information and code in addition to a description of methods for making it easier to reproduce the analyses. We are not providing any support for the scripts.
+> This is not the release of a software package. All scripts and binaries are provided as is, without any warranty. We are only providing this information and code in addition to the description of methods for making it easier to reproduce the analyses. We are not providing any support for the scripts.
 
 ## Versions
 ```
