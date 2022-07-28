@@ -8,6 +8,13 @@ import gzip
 import subprocess
 from collections import defaultdict
 
+'''
+   extract on-target methylated/unmethylated count from bismark coverage output
+   - samplelist: a list of samples to be extracted with one sample per line
+   - capindexfh: capture index file
+   - outdir: output directory
+'''
+
 
 def check_fexist(f):
     if os.path.isfile(f) == True:
