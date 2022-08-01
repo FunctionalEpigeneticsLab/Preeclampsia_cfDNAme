@@ -22,7 +22,6 @@ Methylation count data can be downloaded from ArrayExpress under E-MTAB-11988. C
 
 ## Analysis
 
-Scripts for differential methylation analysis can be found in the folder `diffmethyl`.
+For differential methylation related analyses, please see the folder `diffmethyl`.
 
-Scripts for preeclampsia prediction model building can be found in the folder `classification`. 
-
+For preeclampsia prediction related analyses, please see the folder `classification`. 
