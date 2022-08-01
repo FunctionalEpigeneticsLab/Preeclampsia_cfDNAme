@@ -5,6 +5,7 @@ source(combinescore)
 args <- commandArgs(TRUE)
 infh <- args[1]
 FMFscore <- args[2] #FMFSCORE34 or FMFSCORE37
+##output arguments
 trainrocfig <- args[3]
 trainoutfh <- args[4]
 traincombrocfig <- args[5]
