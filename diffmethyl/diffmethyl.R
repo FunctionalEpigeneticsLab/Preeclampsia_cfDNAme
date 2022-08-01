@@ -362,7 +362,6 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
     }
 }
 
-#GetLimmaMatrix(sampleinfo, inputdir, flagindexfh, cntoption, normalization, material, outprefix)
 
 display_venn <- function(x, ...){
   grid.newpage()
