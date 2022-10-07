@@ -17,6 +17,7 @@ outcoef <- args[10]
 outfig <- args[11]
 
 cntoption = "mval"
+autosomeonly = TRUE
 
-ftmat = FilterCountMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat, lowvarfilter)
-FeatureGLMLoo(ftmat, flagindexfh, alpha, lambda, outpred, outcoef, outfig, selected.feat=NA)
+ftmat = GetTrainMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization=NA, outmat)
+FeatureGLMLoo(ftmat, lowvarfilter, flagindexfh, alpha, lambda, outpred, outcoef, outfig, selected.feat=NA)

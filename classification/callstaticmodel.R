@@ -21,8 +21,9 @@ outcoef <- args[15]
 outfig <- args[16]
 
 cntoption = "mval"
+autosomeonly = TRUE
 
-ftmat = FilterCountMatrixFeat(sampleinfotrain, inputdir, flagindexfh, cntoption, normalization, outmattrain, lowvarfilter)
-predmat = FilterPredCountMatrixFeat(ftmat, sampleinfovalid, inputdir, flagindexfh, cntoption, normalization, outmatvalid, lowvarfilter)
+buildmat = GetBuildMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization=NA, lowvarfilter, outmat)
+predmat = GetPredMatrixFeat(buildmat, predsampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, lowvarfilter, predoutmat)
 GenerateGLMmodel(ftmat, flagindex, alpha, selected.feat=NA, modeldir, modelname)
 ApplyGLMmodel(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh, outcoef, outfig)

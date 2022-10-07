@@ -53,9 +53,15 @@ GetRawCountMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption="mval
     return(inmat)
 }
 
-FlagFailedFeat <- function(inmat) {
+FlagFailedFilterFeat <- function(inmat, autosomeonly=FALSE) {
     flagidx <- LoadProbeIndex(flagindexfh)
-    keepindex <- flagidx$Index[flagidx$FlagIndex==1]
+
+    if (autosomeonly) {
+        keepindex <- flagidx$Index[flagidx$FlagIndex==1 & flagidx$Chromosome != "X"]
+    } else {
+        keepindex <- flagidx$Index[flagidx$FlagIndex==1]
+    }
+    
     ftmat <- inmat[,colnames(inmat) %in% keepindex]
     return(ftmat)
 }
@@ -89,22 +95,22 @@ FlagHighVarianceCtrl <- function(ftmat) {
     return(lowvarindex)
 }
 
-GetTrainMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization=NA, outmat) {
+GetTrainMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization=NA, outmat) {
     flagidx <- LoadProbeIndex(flagindexfh)
     inmat <- GetRawCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption)
     
-    ftmat <- FlagFailedFeat(inmat)
+    ftmat <-FlagFailedFilterFeat(inmat, autosomeonly)
     ftmatnorm <- NormalizeCountMatrix(ftmat, normalization)
     print(paste0("Keep ", dim(ftmatnorm)[2], " features for ", dim(ftmatnorm)[1], " subjects for training assessment"))
     write.table(ftmatnorm,outmat,row.names=TRUE,col.names=TRUE,sep="\t",quote=FALSE)
     return(ftmatnorm)
 }
 
-GetBuildMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization=NA, lowvarfilter=FALSE, outmat) {
+GetBuildMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization=NA, lowvarfilter=FALSE, outmat) {
     flagidx <- LoadProbeIndex(flagindexfh)
     inmat <- GetRawCountMatrix(sampleinfo, inputdir, flagindexfh, cntoption)
-    
-    ftmat <- FlagFailedFeat(inmat)
+
+    ftmat <- FlagFailedFilterFeat(inmat, autosomeonly)
     ftmatnorm <- NormalizeCountMatrix(ftmat, normalization)
 	
     if (lowvarfilter) {
@@ -117,11 +123,11 @@ GetBuildMatrixFeat <- function(sampleinfo, inputdir, flagindexfh, cntoption, nor
     return(ftmatnorm)
 }
 
-GetPredMatrixFeat <- function(trainftmat, predsampleinfo, inputdir, flagindexfh, cntoption, normalization, lowvarfilter, predoutmat) {
+GetPredMatrixFeat <- function(trainftmat, predsampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, lowvarfilter, predoutmat) {
     flagidx <- LoadProbeIndex(flagindexfh)
     traindex <- colnames(trainftmat)
     predinmat <- GetRawCountMatrix(predsampleinfo, inputdir, flagindexfh, cntoption)
-    predftmat <- FlagFailedFeat(predinmat)
+    predftmat <- FlagFailedFilterFeat(inmat, autosomeonly)
     predftmatnorm <- NormalizeCountMatrix(predftmat, normalization)
     predftmatnorm <- predftmatnorm[,colnames(predftmatnorm) %in% traindex]
     print(paste0("*********Apply final model on ",dim(predftmatnorm)[1], " subjects*********"))

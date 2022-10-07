@@ -22,6 +22,7 @@ perfoutfig <- args[15]
 selected.feat <- args[16]
 
 cntoption = "mval"
+autosomeonly = TRUE
 
-ftmat = FilterCountMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, normalization, outmat, lowvarfilter)
-RunGLMAssessReplicates(ftmat, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA)
+ftmat = GetTrainMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization=NA, outmat)
+RunGLMAssessReplicates(ftmat, lowvarfilter, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA)
