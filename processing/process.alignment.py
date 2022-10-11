@@ -77,7 +77,7 @@ def write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, log
         samplescript = trim_scriptdir + '/' + sampleid + '.DNAtrim.task.pbs'
         with open(samplescript, 'w') as fo:
             pbsjobtime = '#PBS -l walltime=%s:00:00\n' % (12)
-            pbsnode = '#PBS -l nodes=1:ppn=%s\n' % (2)
+            pbsnode = '#PBS -l nodes=1:ppn=%s\n' % (1)
             pbsuser = '#PBS -M %s\n' % (noticeaccount)
             pbsjobname = '#PBS -N trim_%s\n' % (sampleid)
             pbscredit = '#PBS -A %s\n\n' % (creditaccount)
@@ -108,7 +108,7 @@ def write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, log
     write_sub_script_qsub(trim_scriptdir, 'DNAtrim', trim_workdir, logdir)
 
 
-def write_sub_script_DNAalign(DNASampleIDs, scriptdir, workdir, logdir):
+def write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir):
     trim_workdir = workdir + '/2_DNAtrim'
     DNAalign_scriptdir = scriptdir + '/3_Bismarkalign'
     DNAalign_workdir = workdir + '/3_Bismark'
@@ -139,12 +139,13 @@ def write_sub_script_DNAalign(DNASampleIDs, scriptdir, workdir, logdir):
             fo.write(pbscredit)
             fo.write(pbsaddsource)
 
-            for fastqfile in os.listdir(trim_workdir):
-                if fastqfile.startswith(sampleid) and (fastqfile.endswith('R1_val_1.fq.gz') or fastqfile.endswith('R1_001_val_1.fq.gz')):
-                    curfastqR1 = '%s/%s' % (trim_workdir, fastqfile)
+            for fastqfile in os.listdir(fastqdir):
+                if fastqfile.startswith(sampleid) and (fastqfile.endswith('R1_001.fastq.gz') or fastqfile.endswith('R1.fastq.gz')):
+                    curfastqR1 = '%s/%s' % (fastqdir, fastqfile)
                     lanefastqR1.append(curfastqR1)
 
-            trimFQR1 = ','.join(lanefastqR1)
+            FQR1 = ','.join(lanefastqR1)
+            trimFQR1 = FQR1.replace(fastqdir, trim_workdir).replace("R1.fastq.gz","R1_val_1.fq.gz").replace("R1_001.fastq.gz","R1_001_val_1.fq.gz")
             trimFQR2 = trimFQR1.replace("R1_","R2_").replace("val_1","val_2")
 
             #directional library
@@ -155,11 +156,15 @@ def write_sub_script_DNAalign(DNASampleIDs, scriptdir, workdir, logdir):
             #check number of lanes
             if (',' in trimFQR1):
                 dedup_task = '%s -p -o %s --output_dir %s --multiple %s\n\n' % (bismarkdedup, sampleid, sample_sub_workdir, alignbams)
-                dedupbam = '%s/%s.multiple.deduplicated.bam' % (sample_sub_workdir, sampleid)
+                tdedupbam = '%s/%s.multiple.deduplicated.bam' % (sample_sub_workdir, sampleid)
             else:
                 dedup_task = '%s -p -o %s --output_dir %s %s\n\n' % (bismarkdedup, sampleid, sample_sub_workdir, alignbams)
-                dedupbam = '%s/%s.deduplicated.bam' % (sample_sub_workdir, sampleid)
+                tdedupbam = '%s/%s.deduplicated.bam' % (sample_sub_workdir, sampleid)
             fo.write(dedup_task)
+
+            dedupbam = '%s/%s.merge.deduplicated.bam' % (sample_sub_workdir, sampleid)
+            forcename_task = 'mv %s %s\n\n' % (tdedupbam, dedupbam)
+            fo.write(forcename_task)
 
             #filterbam = '%s/%s.merge.deduplicated.filtered.bam' % (sample_sub_workdir, sampleid)
             #filter_task = "%s view -bS -@ 4 -F 4 -F 256 -F 2048 -q 40 %s > %s\n\n" % (samtools, dedupbam, filterbam)
@@ -203,9 +208,8 @@ def write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir):
 
             DNAalign_workdir = workdir + '/3_Bismark'
             DNAalign_sub_workdir = DNAalign_workdir + '/' + sampleid
-            for bamfile in os.listdir(DNAalign_sub_workdir):
-                if bamfile.endswith('deduplicated.bam'):
-                    filteredbam = bamfile
+
+            filteredbam = '%s/%s.merge.deduplicated.bam' % (DNAalign_sub_workdir, sampleid)
 
             ###bismark bam not in standard GATK bam format, need to add readgroup and sort before feeding into GATK programs
             infilteredbam = '%s/%s.merge.deduplicated.sorted.bam' % (DNAalign_sub_workdir, sampleid)
@@ -278,7 +282,7 @@ def write_scripts():
 
     write_sub_script_fastqc(DNASampleIDs, fastqdir, scriptdir, workdir, logdir)
     write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, logdir, DNAtrimoption)
-    write_sub_script_DNAalign(DNASampleIDs, scriptdir, workdir, logdir)
+    write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir)
     write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir)
 
 

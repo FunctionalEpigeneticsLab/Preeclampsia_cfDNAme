@@ -1,0 +1,39 @@
+####input information
+
+[configDir]
+fastqdir = /staging/fastq
+workdir = /staging/workdir
+logdir = /staging/logdir
+runscriptdir = /script/Preeclampsia_cfDNAme
+
+[configTool]
+samtools = /apps/SAMtools/1.9-foss-2018a/bin/samtools
+samtoolsdir = /apps/SAMtools/1.9-foss-2018a/bin/
+fastqc = /apps/fastqc/0.11.8/bin/fastqc
+trimtool = /apps/trim_galore
+bismark = /apps/bismark
+bismarkdedup = /apps/deduplicate_bismark
+bismarkextractor = /apps/bismark_methylation_extractor
+bismarkcytosine = /apps/coverage2cytosine
+Rscript = /apps/Rscript
+java = /apps/Java/1.8.0_162/bin/java
+gatk = /apps/GenomeAnalysisTK-3.8-1-0-gf15c1c3ef/GenomeAnalysisTK.jar
+picard = /apps/picard/2.18.23-Java-1.8.0_171/picard.jar
+addsourcetool = ./loadAddTools
+python = /apps/python
+bedtools = /apps/BEDTools/2.27.1-GCCcore-6.4.0/bin/bedtools
+
+[configFile]
+samplelist = /staging/Samplelist
+bismarkreference = /staging/db/reference/ensembl
+reference = /staging/db/reference/hg19/ensembl/Homo_sapiens.GRCh37.dna.primary_assembly.fa
+target = /staging/target/pet.capture.merge.sorted.bed
+targetflank50 = /staging/target/pet.capture.merge.sorted.flank50.bed
+targetflank100 = /staging/target/pet.capture.merge.sorted.flank100.bed
+
+[configParam]
+DNAtrimoption = predefined
+
+[configUser]
+noticeaccount = emailaccount
+creditaccount = creditacc
