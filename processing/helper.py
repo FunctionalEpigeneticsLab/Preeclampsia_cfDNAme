@@ -99,8 +99,9 @@ def get_option():
     parser.read('ConfigFile')
 
     DNAtrimoption = parser.get('configParam','DNAtrimoption')
+    BAMavail = parser.get('configParam','BAMavail')
 
-    return(DNAtrimoption)
+    return(DNAtrimoption,BAMavail)
 
 def get_userinfo():
     parser = configparser.RawConfigParser()

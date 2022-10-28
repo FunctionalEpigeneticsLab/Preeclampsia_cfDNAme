@@ -10,8 +10,8 @@ runscriptdir = /script/Preeclampsia_cfDNAme
 samtools = /apps/SAMtools/1.9-foss-2018a/bin/samtools
 samtoolsdir = /apps/SAMtools/1.9-foss-2018a/bin/
 fastqc = /apps/fastqc/0.11.8/bin/fastqc
-trimtool = /apps/trim_galore
-bismark = /apps/bismark
+trimtool = /apps/trim_galore_0.6.4_dev
+bismark = /apps/bismark_v0.22.3
 bismarkdedup = /apps/deduplicate_bismark
 bismarkextractor = /apps/bismark_methylation_extractor
 bismarkcytosine = /apps/coverage2cytosine
@@ -33,6 +33,7 @@ targetflank100 = /staging/target/pet.capture.merge.sorted.flank100.bed
 
 [configParam]
 DNAtrimoption = predefined
+BAMavail = yes
 
 [configUser]
 noticeaccount = emailaccount

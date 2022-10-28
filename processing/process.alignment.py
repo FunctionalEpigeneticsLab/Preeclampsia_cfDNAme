@@ -8,7 +8,7 @@ import helper
 (fastqdir, workdir, runscriptdir) = helper.get_dir_config()
 (samtools, samtoolsdir, fastqc, trimtool, bismark, bismarkdedup, bismarkextractor, bismarkcytosine, java, gatk, picard, addsourcetool, python, bismarkreference, reference, target, targetflank50, targetflank100) = helper.get_run_config()
 DNASampleIDs = helper.get_DNA_sample()
-(DNAtrimoption) = helper.get_option()
+(DNAtrimoption, BAMavail) = helper.get_option()
 (noticeaccount, creditaccount) = helper.get_userinfo()
 
 def write_sub_script_qsub(taskscriptdir, taskname, taskworkdir, stderrdir):
@@ -211,9 +211,13 @@ def write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir):
 
             filteredbam = '%s/%s.merge.deduplicated.bam' % (DNAalign_sub_workdir, sampleid)
 
+            reorderbam = '%s/%s.merge.deduplicated.reorder.bam' % (DNAalign_sub_workdir, sampleid)
+            reorder_task = '%s -Xmx4G -XX:-UsePerfData -XX:-UseParallelGC -Djava.io.tmpdir=%s -jar %s ReorderSam INPUT=%s OUTPUT=%s REFERENCE=%s\n\n' % (java, logdir,picard, filteredbam, reorderbam, reference)
+            fo.write(reorder_task)
+
             ###bismark bam not in standard GATK bam format, need to add readgroup and sort before feeding into GATK programs
-            infilteredbam = '%s/%s.merge.deduplicated.sorted.bam' % (DNAalign_sub_workdir, sampleid)
-            addrgsort_task = '%s -Xmx4G -XX:-UsePerfData -XX:-UseParallelGC -Djava.io.tmpdir=%s -jar %s AddOrReplaceReadGroups INPUT=%s OUTPUT=%s RGLB=BSseq RGPL=Illumina RGSM=%s RGPU=GC SORT_ORDER=coordinate CREATE_INDEX=true\n\n' % (java, logdir, picard, filteredbam, infilteredbam, sampleid)
+            infilteredbam = '%s/%s.merge.deduplicated.reorder.sorted.bam' % (DNAalign_sub_workdir, sampleid)
+            addrgsort_task = '%s -Xmx4G -XX:-UsePerfData -XX:-UseParallelGC -Djava.io.tmpdir=%s -jar %s AddOrReplaceReadGroups INPUT=%s OUTPUT=%s RGLB=BSseq RGPL=Illumina RGSM=%s RGPU=GC SORT_ORDER=coordinate CREATE_INDEX=true\n\n' % (java, logdir, picard, reorderbam, infilteredbam, sampleid)
             fo.write(addrgsort_task)
             indexbam_task = '%s index %s\n\n' % (samtools, infilteredbam)
             fo.write(indexbam_task)
@@ -280,10 +284,13 @@ def write_scripts():
     logdir = scriptdir + '/log'
     helper.mkdir(logdir)
 
-    write_sub_script_fastqc(DNASampleIDs, fastqdir, scriptdir, workdir, logdir)
-    write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, logdir, DNAtrimoption)
-    write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir)
-    write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir)
+    if BAMavail == "yes" :
+        write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir)
+    else:
+        write_sub_script_fastqc(DNASampleIDs, fastqdir, scriptdir, workdir, logdir)
+        write_sub_script_DNAtrimming(DNASampleIDs, fastqdir, scriptdir, workdir, logdir, DNAtrimoption)
+        write_sub_script_DNAalign(DNASampleIDs, fastqdir, scriptdir, workdir, logdir)
+        write_sub_script_coverage(DNASampleIDs, scriptdir, workdir, logdir)
 
 
 if __name__ == '__main__':
