@@ -127,7 +127,7 @@ GetPredMatrixFeat <- function(trainftmat, predsampleinfo, inputdir, flagindexfh,
     flagidx <- LoadProbeIndex(flagindexfh)
     traindex <- colnames(trainftmat)
     predinmat <- GetRawCountMatrix(predsampleinfo, inputdir, flagindexfh, cntoption)
-    predftmat <- FlagFailedFilterFeat(inmat, autosomeonly)
+    predftmat <- FlagFailedFilterFeat(predinmat, autosomeonly)
     predftmatnorm <- NormalizeCountMatrix(predftmat, normalization)
     predftmatnorm <- predftmatnorm[,colnames(predftmatnorm) %in% traindex]
     print(paste0("*********Apply final model on ",dim(predftmatnorm)[1], " subjects*********"))
