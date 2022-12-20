@@ -24,5 +24,5 @@ selected.feat <- args[16]
 cntoption = "mval"
 autosomeonly = TRUE
 
-ftmat = GetTrainMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization=NA, outmat)
+ftmat = GetTrainMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, outmat)
 RunGLMAssessReplicates(ftmat, lowvarfilter, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA)

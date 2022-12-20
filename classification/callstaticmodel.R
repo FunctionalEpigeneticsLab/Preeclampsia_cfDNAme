@@ -23,7 +23,7 @@ outfig <- args[16]
 cntoption = "mval"
 autosomeonly = TRUE
 
-buildmat = GetBuildMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization=NA, lowvarfilter, outmat)
-predmat = GetPredMatrixFeat(buildmat, predsampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, lowvarfilter, predoutmat)
-GenerateGLMmodel(ftmat, flagindex, alpha, selected.feat=NA, modeldir, modelname)
+buildmat = GetBuildMatrixFeat(sampleinfotrain, inputdir, flagindexfh, cntoption, autosomeonly, normalization, lowvarfilter, outmattrain)
+predmat = GetPredMatrixFeat(buildmat, sampleinfovalid, inputdir, flagindexfh, cntoption, autosomeonly, normalization, lowvarfilter, outmatvalid)
+GenerateGLMmodel(buildmat, flagindex, alpha, selected.feat=NA, modeldir, modelname)
 ApplyGLMmodel(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh, outcoef, outfig)
