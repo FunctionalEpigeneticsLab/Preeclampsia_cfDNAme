@@ -22,7 +22,7 @@ def check_fexist(f):
     else:
         return(0)
 
-def getmavgcountfromcov(samplelist, capindexfh, outdir):
+def getpoolmavgcountfromcov(samplelist, capindexfh, outdir):
 
     with open(samplelist, 'r') as fh0:
         for l0 in fh0:
@@ -71,4 +71,4 @@ def getmavgcountfromcov(samplelist, capindexfh, outdir):
                         fo.write(pfline)
 
 if __name__ == '__main__':
-    getmavgcountfromcov(sys.argv[1], sys.argv[2], sys.argv[3])
+    getpoolmavgcountfromcov(sys.argv[1], sys.argv[2], sys.argv[3])
