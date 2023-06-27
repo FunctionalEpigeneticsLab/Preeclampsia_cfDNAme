@@ -1,4 +1,4 @@
-script.dir <- "./"
+script.dir <- "/staging/leuven/stg_00064/Huiwen/project/3_cfDNA/11_NMrevision/7_behindthemoon/script"
 glmeval <- file.path(script.dir,"glmeval.R")
 source(glmeval)
 
@@ -7,22 +7,21 @@ args <- commandArgs(TRUE)
 sampleinfo <- args[1]
 inputdir <- args[2]
 flagindexfh <- args[3]
-normalization <- args[4]
-outmat <- args[5]
-lowvarfilter <- args[6]
-alpha <- args[7]
-mylambda <- args[8]
-nfold <- args[9]
-numrep <- args[10]
-coefout <- args[11]
-coefsumout <- args[12]
-predresout <- args[13]
-devmseout <- args[14]
-perfoutfig <- args[15]
-selected.feat <- args[16]
+cntoption <- args[4]
+normalization <- args[5]
+batchcorrection <- args[6] #znorm/lmfit/nocorrection
+lowvarfilter <- args[7]
+alpha <- args[8]
+mylambda <- args[9]
+nfold <- args[10]
+numrep <- args[11]
+coefout <- args[12]
+coefsumout <- args[13]
+predresout <- args[14]
+devmseout <- args[15]
+perfoutfig <- args[16]
 
-cntoption = "mval"
 autosomeonly = TRUE
 
-ftmat = GetTrainMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, outmat)
-RunGLMAssessReplicates(ftmat, lowvarfilter, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA)
+ftmatnorm = GetTrainMatrixFeat(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization)
+RunGLMAssessReplicates(ftmatnorm, batchcorrection, lowvarfilter, flagindex, alpha, mylambda, nfold, numrep, coefout, coefsumout, predresout, devmseout, perfoutfig, selected.feat=NA)

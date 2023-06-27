@@ -1,5 +1,5 @@
 script.dir <- "./"
-limmatest <- file.path(script.dir,"limmatest.R")
+limmatest <- file.path(script.dir,"diffmethyl.R")
 source(limmatest)
 
 args <- commandArgs(TRUE)
@@ -11,4 +11,6 @@ normalization <- args[5] ## meannorm || mediannorm || unnorm
 material <- args[6] ## Freshplacenta || Blood || cfDNAatDiagnosis || OxcfDNAatDiagnosis || cfDNAfirstT || cfDNAfirstT_valid
 outprefix <- args[7]
 
-GetLimmaMatrix(sampleinfo, inputdir, flagindexfh, cntoption, normalization, material, outprefix)
+autosomeonly = TRUE
+
+GetLimmaMatrix(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, material, outprefix)

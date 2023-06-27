@@ -1,4 +1,4 @@
-script.dir <- "./"
+script.dir <- "/staging/leuven/stg_00064/Huiwen/project/3_cfDNA/11_NMrevision/7_behindthemoon/script"
 glmeval <- file.path(script.dir,"glmeval.R")
 source(glmeval)
 
@@ -7,23 +7,25 @@ sampleinfotrain <- args[1]
 sampleinfovalid <- args[2]
 inputdir <- args[3]
 flagindexfh <- args[4]
-normalization <- args[5]
-lowvarfilter <- args[6]
-outmattrain <- args[7]
-outmatvalid <- args[8]
-alpha <- args[9]
-selected.feat <- args[10]
-modeldir <- args[11]
-modelname <- args[12]
-mylambda <- args[13]
-outfh <- args[14]
-outcoef <- args[15]
-outfig <- args[16]
+cntoption <- args[5]
+batchcorrection <- args[6]
+normalization <- args[7]
+lowvarfilter <- args[8]
+outmattrain <- args[9]
+outmatvalid <- args[10]
+alpha <- args[11]
+selected.feat <- args[12]
+modeldir <- args[13]
+modelname <- args[14]
+mylambda <- args[15]
+outfh <- args[16]
+outcoef <- args[17]
+outfig <- args[18]
 
-cntoption = "mval"
+#cntoption = "avgme"
 autosomeonly = TRUE
 
-buildmat = GetBuildMatrixFeat(sampleinfotrain, inputdir, flagindexfh, cntoption, autosomeonly, normalization, lowvarfilter, outmattrain)
-predmat = GetPredMatrixFeat(buildmat, sampleinfovalid, inputdir, flagindexfh, cntoption, autosomeonly, normalization, lowvarfilter, outmatvalid)
+buildmat = GetBuildMatrixFeat(sampleinfotrain, inputdir, flagindexfh, cntoption, autosomeonly, batchcorrection, normalization, lowvarfilter, outmattrain)
+predmat = GetPredMatrixFeat(sampleinfotrain, sampleinfovalid, inputdir, flagindexfh, cntoption, autosomeonly, batchcorrection, normalization, lowvarfilter, outmatvalid)
 GenerateGLMmodel(buildmat, flagindex, alpha, selected.feat=NA, modeldir, modelname)
 ApplyGLMmodel(predmat, selected.feat=NA, mylambda, modeldir, modelname, outfh, outcoef, outfig)

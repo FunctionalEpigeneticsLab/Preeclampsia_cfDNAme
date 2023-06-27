@@ -3,10 +3,11 @@ library(reshape2)
 library(ggplot2)
 
 args <- commandArgs(TRUE)
-sumfh <- args[1]
-outfig <- args[2]
+totalregion <- args[1]
+sumfh <- args[2]
+outfig <- args[3]
 
-plotoverlapP <- function(sumfh,outfig) {
+plotoverlapP <- function(totalregion,sumfh,outfig) {
     fh <- fread(sumfh,header=FALSE,sep="\t",data.table=FALSE)
     colnames(fh) <- c("Index","Material","Type")
     FreshTissue <- fh[fh$Material=="FreshTissue",]$Index
@@ -15,7 +16,7 @@ plotoverlapP <- function(sumfh,outfig) {
     cfDNA_1stTrimester <- fh[fh$Material=="cfDNA_1stTrimester",]$Index
     cfDNA_atDiagnosis <- fh[fh$Material=="cfDNA_atDiagnosis",]$Index
 
-    total <- 31289
+    total <- totalregion
     # Fresh tissue vs Blood
     groupT <- length(FreshTissue)
     groupB <- length(Blood)
@@ -46,4 +47,4 @@ plotoverlapP <- function(sumfh,outfig) {
     dev.off()
 }
 
-plotoverlapP(sumfh,outfig)
+plotoverlapP(totalregion,sumfh,outfig)

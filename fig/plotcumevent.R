@@ -10,7 +10,7 @@ plotcumevent <- function(infh,outfigprefix) {
     fh <- fread(infh,header=TRUE,sep="\t",data.table=FALSE)
     #fh$PEpred <- ifelse(fh$PEscorelabel=="Ctrl",0,1)
     fh$PEpred <- factor(fh$PEscorelabel,levels=c("Ctrl","Case"))
-    fh$Metapred <- ifelse(fh$CombinedScore < 0.533,"Ctrl","Case")
+    fh$Metapred <- ifelse(fh$CombinedScore < 0.5,"Ctrl","Case")
     fh$Metapred <- factor(fh$Metapred,levels=c("Ctrl","Case"))
     fh$GADwks <- as.numeric(fh$GADdays/7)
     #fh$CaseCtrl <- factor(fh$CaseCtrl,level=c("Ctrl","Case"))

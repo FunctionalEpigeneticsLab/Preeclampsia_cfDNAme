@@ -8,34 +8,68 @@ library(plyr)
 
 # Differential methylation analysis
 
+args <- commandArgs(TRUE)
+sampleinfo <- args[1]
+inputdir <- args[2]
+flagindexfh <- args[3]
+cntoption <- args[4]
+autosomeonly <- args[5]
+normalization <- args[6]
+material <- args[7]
+outprefix <- args[8]
+
 LoadProbeIndex <- function(indexfh) {
     idx <- fread(indexfh, header=TRUE, sep="\t", data.table=FALSE)
     idx <- idx[order(idx$Index),]
     return(idx)
 }
 
-FlagFailedFeat <- function(inmat) {
+#FlagFailedFeat <- function(inmat) {
+#    flagidx <- LoadProbeIndex(flagindexfh)
+#    keepindex <- flagidx$Index[flagidx$FlagIndex==1]
+#    ftmat <- inmat[,colnames(inmat) %in% keepindex]
+#    return(ftmat)
+#}
+
+FlagFailedFilterFeat <- function(inmat, autosomeonly=FALSE) {
     flagidx <- LoadProbeIndex(flagindexfh)
-    keepindex <- flagidx$Index[flagidx$FlagIndex==1]
+
+    if (autosomeonly) {
+        keepindex <- flagidx$Index[flagidx$FlagIndex==1 & flagidx$Chromosome != "X"]
+    } else {
+        keepindex <- flagidx$Index[flagidx$FlagIndex==1]
+    }
+    
     ftmat <- inmat[,colnames(inmat) %in% keepindex]
     return(ftmat)
 }
 
-NormalizeCountMatrix <- function(ftmat, normalization=NA) {
+NormalizeCountMatrix <- function(ftmat,cntoption,normalization=NA) {
     if (normalization=="meannorm") {
-        print("Normalize per sample methylation count by absMEAN")
-        normfactor <- apply(ftmat, 1, function(x) abs(mean(x)))
+        if (cntoption == "logavgme") {
+            normfactor <- apply(ftmat, 1, function(x) abs(mean(x)))
+	    } else if (cntoption == "avgme") {
+            normfactor <- apply(ftmat, 1, function(x) abs(mean(x)))
+	    }
+	    print(normfactor)
         ftmatnorm <- ftmat/normfactor
     } else if (normalization=="mediannorm") {
-        print("Normalize per sample methylation count by absMEDIAN")
-        normfactor <- apply(ftmat, 1, function(x) abs(median(x)))
+        if (cntoption == "logavgme") {
+            print("Normalize per sample methylation count by abs log MEDIAN")
+            #normfactor <- apply(ftmat, 1, function(x) abs(log2(median(2^x)))
+            normfactor <- apply(ftmat, 1, function(x) abs(median(x)))
+        } else if (cntoption == "avgme") {
+            print("Normalize per sample methylation count by MEDIAN")
+            normfactor <- apply(ftmat, 1, function(x) abs(median(x)))
+        }
+	    print(normfactor)
         ftmatnorm <- ftmat/normfactor
     } else if (normalization=="ffnorm") {
         #normalize on fetal fraction
         #consider to to
         print("to be implemented")
     } else {
-        ftmatnorm <- ftmat
+	    ftmatnorm <- ftmat
     }
     return(ftmatnorm)
 }
@@ -126,52 +160,53 @@ make_volcano <- function(result.limma,adj = FALSE,Annotate = TRUE,FDRcutoff = 0.
     return(p1)
 }
 
-GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normalization, material, outprefix) {
+GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, material, outprefix) {
     saminfo <- fread(sampleinfo, header=TRUE, sep="\t", data.table=FALSE)
     flagidx <- LoadProbeIndex(flagindexfh)
+    #datalist <- lapply()
     inmat <- matrix()
     
     for (i in 1:nrow(saminfo)) {
         print(paste("reading in subject ", saminfo[i,"SubjectID"]))
-	samfile <- paste0(saminfo[i,"SubjectID"], ".mavg.count.merge.tsv")
-	samfh <- file.path(inputdir, samfile)
-	curfh <- fread(samfh, header=TRUE, sep="\t", data.table=FALSE)
-	curfh <- merge(flagidx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
-	curfh <- curfh[order(curfh$Index),]
+        samfile <- paste0(saminfo[i,"SubjectID"], ".ind.mavg.count.merge.tsv")
+        samfh <- file.path(inputdir, samfile)
+        curfh <- fread(samfh, header=TRUE, sep="\t", data.table=FALSE)
+        curfh <- merge(flagidx,curfh,by=c("Chromosome","Start","End","Index","Probe"),all.x=TRUE)
+        curfh <- curfh[order(curfh$Index),]
 		
-	if (cntoption == "mval") {
-	    curfh$calval <- log2((curfh$Methylated+1)/(curfh$Unmethylated+1))
-	} else if (cntoption == "betaval") {
-	    curfh$calval <- 100*curfh$Methylated/(curfh$Methylated+curfh$Unmethylated)
-	} else if (cntoption == "log2betaval") {
-	    curfh$calval <- log2(100*curfh$Methylated/(curfh$Methylated+curfh$Unmethylated)+0.001)
-	} else {
-	    print("specify value to be calculated")
-	}
-		
-	if (i == 1) {
-	    inmat <- matrix(curfh$calval,nrow=1)
-	} else {
-	    inmat <- rbind(inmat, matrix(curfh$calval,nrow=1))
-	}
+        if (cntoption == "avgme") {
+            curfh$calval <- curfh$MePer
+        } else if (cntoption == "logavgme") {
+            curfh$calval <- log2(curfh$MePer/100+0.0001)
+        } else {
+            print("specify value to be calculated")
+        }
+            
+        if (i == 1) {
+            inmat <- matrix(curfh$calval,nrow=1)
+        } else {
+            inmat <- rbind(inmat, matrix(curfh$calval,nrow=1))
+        }
     }
-    #in case of beta matrix, fill missing value, remove 0 variance column
-    colmedian <- apply(inmat,2,median,na.rm=TRUE)
-    medianmat<-t(matrix(colmedian,ncol=nrow(inmat),nrow=ncol(inmat)))
-    inmat[is.na(inmat)] <- medianmat[is.na(inmat)]
-    #inmat <- inmat[ , apply(inmat, 2, function(x) !any(is.na(x)))]
-    #inmat[, colSums(inmat != 0) > 0]
-    #print(dim(inmat))
+    #colmedian <- apply(inmat,2,median,na.rm=TRUE)
+    #medianmat<-t(matrix(colmedian,ncol=nrow(inmat),nrow=ncol(inmat)))
+    #inmat[is.na(inmat)] <- medianmat[is.na(inmat)]
+    if (cntoption == "avgme") {
+        inmat[is.na(inmat)] <- 0
+    } else if (cntoption == "logavgme") {
+        inmat[is.na(inmat)] <- log2(0.0001)
+    }
 
     colnames(inmat) <- flagidx$Index
-    ftmat <- FlagFailedFeat(inmat)
+    ftmat <- FlagFailedFilterFeat(inmat, autosomeonly)
+
     ftmat <- as.data.frame(ftmat)
     #names(ftmat) <- paste0("I",colnames(ftmat))
     names(ftmat) <- colnames(ftmat)
     ftmat <- ftmat[,apply(ftmat,2,function(x) !any(is.na(x)))]
     ftmat <- ftmat[,colSums(ftmat!=0)>0]
     #print(dim(ftmat))
-    ftmat <- NormalizeCountMatrix(ftmat, normalization)
+    ftmat <- NormalizeCountMatrix(ftmat,cntoption,normalization)
     
     if (material == "Freshplacenta" || material == "FFPEplacenta" || material == "Mixplacenta"|| material == "Blood") {
         Phenotype <- factor(saminfo$Phenotype)
@@ -239,6 +274,7 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
 	GA <- saminfo$GA
 	SeqDep <- saminfo$MMeanDep
 	MeanMeth <- apply(ftmat, 1, function(x) mean(x))
+    Batch <- saminfo$Batch
 
         design0 <- model.matrix(~ 0+Phenotype)
 	myobj0 <- lmFit(t(ftmat),design0)
@@ -270,7 +306,7 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
         print(p02)
         dev.off()
 
-	design1 <- model.matrix(~ 0+Phenotype+MeanMeth)
+	design1 <- model.matrix(~ 0+Phenotype+Batch)
 	myobj1 <- lmFit(t(ftmat),design1)
 	contrastmat1 <- makeContrasts(PhenotypeCase-PhenotypeCtrl, levels=colnames(design1))
 	myfit1 <- contrasts.fit(myobj1, contrastmat1)
@@ -279,16 +315,16 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
 	limmatable1$Index <- row.names(limmatable1)
         fetchlimmatable1 <- merge(limmatable1,flagidx,by=c("Index"))
         fetchlimmatable1 <- fetchlimmatable1[order(fetchlimmatable1$adj.P.Val),]
-	outfh1 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.tsv")
+	outfh1 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_Batch.tsv")
         write.table(fetchlimmatable1,outfh1,row.names=FALSE,sep="\t",quote=FALSE)
 
-	outfig10 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.FC.adjP.volcano.pdf")
+	outfig10 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_Batch.FC.adjP.volcano.pdf")
 	pdf(outfig10,height=7,width=7)
 	p10 <- adjvolcano(limmatable1)
 	print(p10)
 	dev.off()
 
-        outfig11 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_MeanMeth.FC.unadjP.volcano.pdf")
+        outfig11 <- paste0(outprefix,".",material,".",cntoption,".",normalization,".limma.factor_Batch.FC.unadjP.volcano.pdf")
         pdf(outfig11,height=7,width=7)
         p11 <- unadjvolcano(limmatable1)
         print(p11)
@@ -362,6 +398,7 @@ GetLimmaMatrix <- function(sampleinfo, inputdir, flagindexfh, cntoption, normali
     }
 }
 
+GetLimmaMatrix(sampleinfo, inputdir, flagindexfh, cntoption, autosomeonly, normalization, material, outprefix)
 
 display_venn <- function(x, ...){
   grid.newpage()
