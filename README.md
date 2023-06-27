@@ -1,6 +1,6 @@
-# Cell-free DNA Methylome Analysis Enables Early Preeclampsia Prediction
+# Cell-free DNA Methylome Analysis for Early Preeclampsia Prediction
 
-The scripts provide details for the analyses performed in the manuscript entitled 'Cell-free DNA Methylome Analysis Enables Early Preeclampsia Prediction'.
+The scripts provide details for the analyses performed in the manuscript entitled 'Cell-free DNA Methylome Analysis for Early Preeclampsia Prediction'.
 
 > This is not the release of a software package. All scripts and binaries are provided as is, without any warranty. We are only providing this information and code in addition to the description of methods for making it easier to reproduce the analyses.
 
@@ -18,7 +18,7 @@ Sequencing depth was calculated by GATK3.8 `DepthOfCoverage`. Sequencing reads o
 
 ## Data availability
 
-Methylation count data can be downloaded from ArrayExpress under E-MTAB-11988. Captured regions can be found in the folder `data`.
+Bisulfite sequencing data can be downloaded from European Genome-Phenome Archive under EGAS00001007071. Captured regions can be found in the folder `data`.
 
 ## Analysis
 
